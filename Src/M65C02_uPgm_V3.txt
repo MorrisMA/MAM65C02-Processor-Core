@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0013
+File Revision: 0014
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -192,7 +192,11 @@ endh
 --                          bus on the correct cycle. The ALU provides the out-
 --                          put on the cycle following the read, so there's no
 --                          need for a cycle to wait on ALU Valid before writing
---                          result back to memory. 
+--                          result back to memory.
+--
+--  0014    12D28   MAM     Corrected the _LDX_abs instruction. Improperly took
+--                          branch to _RO_AbsX instead of _RO_Abs. (Notified of
+--                          error by Windfall @forum.6502.org.) 
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -1431,7 +1435,7 @@ _STX_abs:
 _STZ_absX:
     BRV0    _WO_AbsX,1,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _LDX_abs:
-    BRV0    _RO_AbsX,1,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,1,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _LDX_absY:
     BRV0    _RO_AbsY,1,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _DEC_abs:
