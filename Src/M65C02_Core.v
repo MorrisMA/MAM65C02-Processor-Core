@@ -232,6 +232,11 @@
 //                          the address generation to support synchronous Block
 //                          RAM for use with the M65C02_Core instead of asyn-
 //                          chronous LUT-based RAM presently used.
+//
+//  2.10    12D29   MAM     Per Windfall@forum.6502.org, the DP,X and DP,Y
+//                          address modes did not wrap at the zero page bounda-
+//                          ry. Adjusted the AO equation to wrap the address as
+//                          required.
 //              
 //
 // Additional Comments:
@@ -719,7 +724,8 @@ end
 
 always @(*) NA = AL + AR;
 
-assign AO = NA;
+//assign AO = NA;
+assign AO = (((NA_Op == pNA_DPX) | (NA_Op == pNA_DPY)) ? {8'b0, NA[7:0]} : NA);
 
 //  Memory Address Register
 
