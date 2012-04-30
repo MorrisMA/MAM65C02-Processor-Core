@@ -9,14 +9,19 @@ Released under LGPL.
 General Description
 -------------------
 
-This project is a project to demonstrate a microprogrammed implementation of the
-WDC65C02 microprocessor. It is provided as a core. Several external components
+This project provides a microprogrammed implementation of the
+WDC 65C02 microprocessor.
+
+It is provided as a core. Several external components
 are required to form a functioning processor: (1) memory, (2) interrupt controller,
 and (3) I/O interface buffers. The Verilog testbench provided demonstrates
 a simple configuration for a functioning processor implemented with the M65C02
-core: M65C02_Core. The core provides all the logic to execute the original op-codes
-of the W65C02 processor, and not the extended instructions of the current
-W65C02S synthesizable core.
+core: M65C02_Core. Currently, the core provided here only executes the original op-codes
+of the WDC 65C02 processor, and not the extended instructions of the current WDC
+W65C02S synthesizable core. (In addition to the original 65C02 instructions, the
+WDC W65C02S also implements the BBSx, BBRx, SMBx, and RMBx instructions introduced
+by Rockwell in the R65C02, and additional instructions introduced by WDC in its
+65C802/65C816 microprocessors.)
 
 The core handles an interrupt signal, which external logic asserts after it processes
 any interrupts that it provides. That is, the core accepts and performs
