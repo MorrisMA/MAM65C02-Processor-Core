@@ -11,22 +11,22 @@ General Description
 
 This project is a project to demonstrate a microprogrammed implementation of the
 WDC65C02 microprocessor. It is provided as a core. Several external components
-are required to form a functioning processor: (1) memory, (2) interrupt control-
-ler, and (3) I/O interface buffers. The Verilog testbench provided demonstrates
+are required to form a functioning processor: (1) memory, (2) interrupt controller,
+and (3) I/O interface buffers. The Verilog testbench provided demonstrates
 a simple configuration for a functioning processor implemented with the M65C02
-core: M65C02_Core. The core provides all the logic to execute the original op-
-codes of the W65C02 processor, and not the extended instructions of the current
+core: M65C02_Core. The core provides all the logic to execute the original op-codes
+of the W65C02 processor, and not the extended instructions of the current
 W65C02S synthesizable core.
 
-The core handles an interrupt signal, which external logic asserts after it pro-
-cesses any interrupts that it provides. That is, the core accepts and performs
+The core handles an interrupt signal, which external logic asserts after it processes
+any interrupts that it provides. That is, the core accepts and performs
 the interrupt trap processing, but the external logic must implement the type of
 interrupt (maskable or non-maskable), and provide the vector to the core. This
 implementation is different than the original processor's in that an indirect
-jump through a predetermined address is not performed by the core. The implemen-
-tation envisioned is that the external interrupt controller records the vectors
-for reset (RST), the non-maskable interrupt (NMI), or the maskable interrupt
-(IRQ) and provides the appropriated vector when requested by the core.
+jump through a predetermined address is not performed by the core. The implementation
+envisioned is that the external interrupt controller records the vectors for reset
+(RST), the non-maskable interrupt (NMI), or the maskable interrupt (IRQ) and
+provides the apropriate vector when requested by the core.
 
 The core assumes that the external memory is implemented as an asynchronous
 memory device, and as a result, the core expects that the memory will accept an
