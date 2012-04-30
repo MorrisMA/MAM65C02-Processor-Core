@@ -58,7 +58,7 @@ SC is used to indicate a single cycle instruction.
 Done is asserted during the instruction fetch of the next instruction. In many
 cases, the execution of each instruction is signalled by Done on the same cycle
 that the next instruction op-code is being read from memory. Thus, the M65C02
-core demonstrated pipeline behaviour, and as a result, tends to execute many
+core demonstrates pipelined behaviour, and as a result, tends to execute many
 65C02 instructions in fewer clock cycles.
 
 The external bus transaction is signalled by IO_Op. IO_Op signals data memory
