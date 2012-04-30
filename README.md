@@ -104,15 +104,15 @@ reports that the 9.091 ns period (110 MHz) constraint is satisfied.
 
 The ISE 10.1i SP3 implementation results are as follows:
 
-Number of Slice FFs:            310
-Number of 4-input LUTs:         746
-Number of Occupied Slices:      480
-Total Number of 4-input LUTs:   755 (9 used as route-throughs)
+    Number of Slice FFs:            310
+    Number of 4-input LUTs:         746
+    Number of Occupied Slices:      480
+    Total Number of 4-input LUTs:   755 (9 used as route-throughs)
 
-Number of BUFGMUXs:             1
-Number of RAMB16BWEs            2   (M65C02_Decoder_ROM, M65C02_uPgm_V3)
+    Number of BUFGMUXs:             1
+    Number of RAMB16BWEs            2   (M65C02_Decoder_ROM, M65C02_uPgm_V3)
 
-Best Case Achievable:           9.035 ns (0.056 ns Setup, 0.976 ns Hold)
+    Best Case Achievable:           9.035 ns (0.056 ns Setup, 0.976 ns Hold)
 
 Status
 ------
