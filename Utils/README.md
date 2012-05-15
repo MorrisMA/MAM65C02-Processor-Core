@@ -12,8 +12,8 @@ Directory Contents
 This subdirectory provides two utilities to support the M65C02 Microprogrammed
 Processor Core:
 
-    (1) **Bin2Txt.exe**
-    (2) **SMRTool.exe**
+    (1) Bin2Txt.exe
+    (2) SMRTool.exe
     
 Bin2Txt.exe
 ===========
@@ -57,7 +57,7 @@ SMRTool.exe
 
 **SMRTool.exe** is a tool used to convert text source files into VHDL, Verilog,
 or Xilinx memory intialization files. The source files can be used to construct
-simple ROM for a number of usefull purposes. It's particular use in the M65C02
+simple ROM for a number of usefull purposes. It's particular use in the MAM65C02
 Microprogrammed Processor Core is to convert the microprogram source files provided
 into two memory initialization files which are loaded into the fixed and variable
 microprogram ROMs.
@@ -85,7 +85,7 @@ Documentation
 -------------
 
 A complete description of the tool is not available. The source files provided in
-the sources subdirectory, M65C02_Decode_ROM.txt and M65C02_uPgm_V3.txt, provide
+the sources subdirectory, **M65C02_Decode_ROM.txt** and **M65C02_uPgm_V3.txt**, provide
 an example of the format and syntax that is required by **SMRTool**. This section
 will provide additional information about the structure and syntax, but the source
 files provided are the definitive syntax references for the tool; they make use 
@@ -127,15 +127,15 @@ On a line of source, fields may be skipped, and the default value is inserted by
 **SMRTool**, using consecutive commas. From the last used field on a line to the
 end, or to a comment, there is no need to include the commas to skip the unused
 fields. The tool will automatically substitute the default value for all skipped
-fields. The default value of a field is zero. A limitation of the present tool is
+fields. **The default value of a field is zero.** A limitation of the present tool is
 that the default value can not be changed.
 
 The current implementation of the tool recognizes the following directives:
 
-    (1) **.asm**
-    (2) **.def**
-    (3) **.equ**
-    (4) **.org**
+    (1) .asm
+    (2) .def
+    (3) .equ
+    (4) .org
 
 
 The **.asm** directive defines the microprogram controller's instructions.
@@ -156,7 +156,7 @@ implementation is that all symbols must be unique.
 The **.org** directive defines the location counter address of all source lines
 which follow the directive. If multiple **.org** directives are used in a source
 file, then the intervening locations are automatically filled by the tool with zeros.
-In the present implementation there is a limitation that all .org directives
+In the present implementation there is a limitation that all **.org** directives
 be increasing in magnitude. If an **.org** is placed in the source with a lesser
 value than one already used, the location counter is assigned the new value, and
 the previously defined values may be overwritten by any new output lines.
