@@ -1,11 +1,11 @@
 # 
-# Project automation script for M65C02 
+# Project automation script for MAM6502 
 # 
 # Created for ISE version 10.1
 # 
 # This file contains several Tcl procedures (procs) that you can use to automate
 # your project by running from xtclsh or the Project Navigator Tcl console.
-# If you load this file (using the Tcl command: source M65C02.tcl, then you can
+# If you load this file (using the Tcl command: source C:/XProjects/ISE10.1i/MAM6502/M65C02.tcl, then you can
 # run any of the procs included here.
 # You may also edit any of these procs to customize them. See comments in each
 # proc for more instructions.
@@ -31,8 +31,8 @@
 #        when this script was generated.
 # 
 
-set myProject "M65C02.ise"
-set myScript "M65C02.tcl"
+set myProject "MAM6502.ise"
+set myScript "C:/XProjects/ISE10.1i/MAM6502/M65C02.tcl"
 
 # 
 # Main (top-level) routines
@@ -188,8 +188,8 @@ proc set_project_props {} {
    project set synthesis_tool "XST (VHDL/Verilog)"
    project set simulator "ISE Simulator (VHDL/Verilog)"
    project set "Preferred Language" "Verilog"
-   project set "Enable Message Filtering" "true"
-   project set "Display Incremental Messages" "true"
+   project set "Enable Message Filtering" "false"
+   project set "Display Incremental Messages" "false"
 
 }
 
@@ -210,20 +210,26 @@ proc add_source_files {} {
 
    puts "$myScript: Adding sources to project..."
 
+   xfile add "../../../MAM/MAM6502/M65C02_Tst2.a65"
    xfile add "M65C02.ucf"
    xfile add "M65C02_ALU.v"
+   xfile add "M65C02_AddrGen.v"
    xfile add "M65C02_BCD.v"
    xfile add "M65C02_BIN.v"
+   xfile add "M65C02_Base.v"
    xfile add "M65C02_Core.v"
    xfile add "M65C02_Decoder_ROM.coe"
    xfile add "M65C02_Decoder_ROM.txt"
    xfile add "M65C02_MPC.v"
+   xfile add "M65C02_MPCv3.v"
+   xfile add "M65C02_Mnemonics.txt"
    xfile add "M65C02_RAM.txt"
    xfile add "M65C02_RAM.v"
    xfile add "M65C02_Tst2.txt"
    xfile add "M65C02_uPgm_V3.coe"
    xfile add "M65C02_uPgm_V3.txt"
    xfile add "tb_M65C02_ALU.v"
+   xfile add "tb_M65C02_BCD.v"
    xfile add "tb_M65C02_Core.v"
    xfile add "tb_M65C02_RAM.v"
 
@@ -318,7 +324,7 @@ proc set_process_props {} {
    project set "Logical Shifter Extraction" "true" -process "Synthesize - XST"
    project set "Optimization Goal" "Speed" -process "Synthesize - XST"
    project set "Optimization Effort" "High" -process "Synthesize - XST"
-   project set "Resource Sharing" "true" -process "Synthesize - XST"
+   project set "Resource Sharing" "false" -process "Synthesize - XST"
    project set "Shift Register Extraction" "true" -process "Synthesize - XST"
    project set "XOR Collapsing" "true" -process "Synthesize - XST"
    project set "Other Bitgen Command Line Options" "" -process "Generate Programming File"

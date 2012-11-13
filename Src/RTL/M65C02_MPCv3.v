@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Copyright 2009-2012 by Michael A. Morris, dba M. A. Morris & Associates
@@ -41,10 +42,10 @@
 // Company:         M. A. Morris & Associates
 // Engineer:        Michael A. Morris
 // 
-// Create Date:     10/30/2009 
-// Design Name:     WDC W65C02 Microprocessor Re-Implementation
-// Module Name:     M65C02_MPC
-// Project Name:    C:\XProjects\ISE10.1i\MAM6502
+// Create Date:     12:02:40 10/28/2012 
+// Design Name:     Microprogram Controller (Version 3)
+// Module Name:     MPCv3.v
+// Project Name:    C:\XProjects\VerilogComponents\MPCv3
 // Target Devices:  Generic SRAM-based FPGA
 // Tool versions:   Xilinx ISE 10.1i SP3
 // 
@@ -101,95 +102,86 @@
 //
 // Revision: 
 //
-//  0.01    09J30   MAM     File Created
+//  0.01    12J28   MAM     File Created
 //
-//  1.00    10G10   MAM     Stack Pop operation modified to load StkD register
-//                          with 0 during subroutine returns. This will force
-//                          the microprogram to restart at 0 if the stack is
-//                          underflowed, or POPed, more the 4 times. Also made
-//                          a change to the Stack Push operation so that Next
-//                          is pushed instead of MA.
-//
-//  1.01    10G24   MAM     Corrected typos in the instruction table.
-//
-//  1.02    10G25   MAM     Removed Test Input Register, Strb input, and Inh
-//                          output. External logic required to provide synchro-
-//                          nized inputs for testing.
-//
-//  2.00    10H28   MAM     Converted the BRV3 instruction into a conditional
-//                          branch to subroutine instruction. In this way the
-//                          BRV3, or CBSR, instruction can be used to take a
-//                          branch to an interrupt subroutine. The conditional
-//                          subroutine call is taken if T[3] is a logic 1. Like
-//                          the BSR instruction, the address of the subroutine
-//                          is provided by BA field.
-//
-//  2.10    11C05           Simplified return stack implementation. Removed
-//                          unused code, but retained code commented out that
-//                          reflects original implementation of BRV3 instruc-
-//                          tion.
-//
-//  2.11    11C20           Removed CBSR modification
-//
-//  3.00    11C21           Changed module and added support for pipelined op-
-//                          eration per the connections of the original F9408.
-//                          Included an internal Reset FF stretcher to insure
-//                          that an external registered PROM has time to fetch
-//                          the first microprogram word. Removed the MA_Sel
-//                          input because really should have been module reset.
-//                          Without tying MA to 0 with the internal reset, the
-//                          module in pipelined mode was not executing the same
-//                          microprogram as non-pipelined mode module and that
-//                          was unexpected. With these changes, the module per-
-//                          forms identically to the original F9408 MPC.
-//
-//  4.00    12A29   MAM     Changing the behavior of BRV0, BRV1, BRV2, and BMW
-//                          so that they are all conditional on T0. If T0 is
-//                          not asserted, these instructions will wait at the
-//                          current location until T0 is asserted. Renamed the
-//                          module from F9408A_MPC.v to MAM6502_MPC.v. Para-
-//                          meterized the reset address.
-//
-//  4.10    12B03   MAM     Restored the operation of the BRVx and BMW instruc-
-//                          tions, but added two inputs to allow the module to
-//                          respond to an external ready signal. In this manner
-//                          the module will operate as a single or multi-cycle
-//                          microprogram controller as determined by external
-//                          logic, or the microprogram.
-//
-//  4.11    12B19   MAM     Renamed module: MAM6502_MPC => M65C02_MPC.
+//  1.00    12K12   MAM     Modified MA multiplexer to either present next
+//                          address or hold current address. This is required
+//                          when the next microcycle has a length greater than
+//                          one. To perform this adjustment/extension of the
+//                          microcycle, two signals track the current and next
+//                          microcycle length: CurLenZ, and NxtLenZ. Also, added
+//                          register MPC_En to control the MPC registers and
+//                          MA multiplexer. Removed non-pipelined mode control
+//                          input because the typical usage of the MPC is with
+//                          Block RAM, which will only work with the pipelined
+//                          mode.
 //
 // Additional Comments: 
 //
-//  Since this component is expected to be used in a fully synchronous design,
-//  the registering of the Test inputs with an external Strb signal and the Inh
-//  signal is not desirable since it puts another delay in the signal path. The
-//  effect will be to decrease the responsiveness of the system, and possibly
-//  require that the test inputs be stretched so that pulsed signals are not
-//  missed by the conditional tests in the microprogram. In the partially
-//  synchronous design environment in which the original F9408 was used, incor-
-//  porating a register internal to the device for the test inputs was very 
-//  much a requirement to reduce the risk of metastable behaviour of the micro-
-//  program. To fully support the test inputs, the microprogram should include
-//  an explicit enable for the test input logic in order to control the chang-
-//  ing of the test inputs relative to the microroutines.
+//  The Version 3 Microprogram Controller (MPCv3) is based on the Fairchild
+//  F9408 MPC. It extends that microprogram controller by incorporating a micro-
+//  cycle controller directly into the module, a al Am2925, which allows each
+//  microcycle to be controlled by a field in the microprogram, or by external
+//  logic.
+//
+//  The purpose of these extensions is to allow easy implementation of a varia-
+//  ble length microprogram cycle, i.e. microcycle. In turn, this simplifies the
+//  implementation of microprogrammed state machines which interface to synchro-
+//  nous memories found in most FPGAs, or to external synchronous/asynchronous
+//  memories.
+//
+//  When a microprogrammed state machine interfaces to a synchronous memory,
+//  there is a one cycle delay between the presentation of the address and the
+//  output of the data at that address. In many instances, the microprogram is
+//  unable to perform any useful work during the first cycle. Thus, the micro-
+//  program must perform an explicit delay operation, which generally requires
+//  a state to be added to every read of these memories. If there are a signifi-
+//  cant number of these read operations in the microprogram, then there is an
+//  opportunity for the microprogram to be incorrectly programmed when one or
+//  more of the delay cycles are not included in the microprogram. Isolating
+//  the resulting fault in the state machine may be difficult.
+//
+//  To avoid errors of this type, microcycles which read from or write to 
+//  devices, such as memories, can be automatically extended explicitly by a
+//  microprogram field or logic. Using this type of facility reduces the number
+//  of states required to interface a microprogrammed state machine to these
+//  types of devices. It also makes the microprogram less tedious to develop and
+//  improves overall productivity, which is a prime reason for choosing a micro-
+//  programmed approach for developing complex state machines.
+//
+//  The objective of the embedded microcyle length controller is not to incor-
+//  porate the full functionality of the Am2925 Microcycle Controller. Instead,
+//  it is to add a simple microcycle length control function which can be used
+//  to simplify the microprogram and provide a easy mechanism for interfacing
+//  the microprogrammed state machine to devices which require more than one
+//  clock cycle to access. The embedded microcycle length controller included in
+//  this module allows the microcycle length of the F9408 to be set to 1 , 2,
+//  or 4 cycles. When extended to 2 cycles, the cycle cannot be extended using
+//  an external wait state request. When extended to 4 cycles, an external wait
+//  state generator can be used to add any number of wait states to the micro-
+//  cycle of the F9408.
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-module M65C02_MPC #(
+module M65C02_MPCv3 #(
     parameter pAddrWidth = 10,          // Original F9408 => 10-bit Address
     parameter pRst_Addrs = 0            // Reset Address
 )(
     input   Rst,                        // Module Reset (Synchronous)
     input   Clk,                        // Module Clock
+
+    input   [1:0] uLen,                 // Microcycle Length Select
+    input   Wait,                       // Microcycle Wait State Request Input
+
+    output  C4, C3, C2, C1,             // One-hot microcycle state outputs
+
     input   [3:0] I,                    // Instruction (see description)
     input   [3:0] T,                    // Conditional Test Inputs
     input   [2:0] MW,                   // Multi-way Branch Address Select
     input   [(pAddrWidth-1):0] BA,      // Microprogram Branch Address Field
     output  [1:0] Via,                  // Unconditional Branch Address Select
-    input   En,                         // Enable Ready
-    input   Rdy,                        // Ready
-    input   PLS,                        // Pipeline Mode Select
+
+
     output  reg [(pAddrWidth-1):0] MA   // Microprogram Address
 );
 
@@ -222,6 +214,10 @@ localparam BTL3 = 15;   // Branch if T[3] is Logic 0, else fetch next instr.
 //  Declarations
 //
 
+reg     [1:0] MC;                         // Microcycle Length Controller State
+wire    NxtLenZ;                          // Next microcycle length is Z
+reg     MPC_En;                           // MPC register enable
+
 wire    [(pAddrWidth - 1):0] Next;        // Output Program Counter Incrementer
 reg     [(pAddrWidth - 1):0] PC_In;       // Input to Program Counter
 reg     [(pAddrWidth - 1):0] PC;          // Program Counter
@@ -237,6 +233,8 @@ wire    MPC_Rst;                          // Internal MPC Reset signal
 //  Implementation
 //
 
+//  Implement module reset generator
+
 always @(posedge Clk)
 begin
     if(Rst)
@@ -245,18 +243,68 @@ begin
         dRst <= #1 0;
 end
 
-assign MPC_Rst = ((PLS) ? (Rst | dRst) : Rst);
+assign MPC_Rst = (Rst | dRst);
+
+//
+//  Embedded Microcycle Length Controller
+//
+//  Three microcycles are implemented: 1, 2, or 4 clock in length. If word 0 of
+//  the microprogram, or external logic, sets a different length during reset,
+//  the microcycle length controller will exit reset in either state 0 or
+//  state 2. If it exits reset in state 2, a single clock microcycle will be
+//  performed after reset. If it exits reset in state 0, either a 2 cycle or
+//  a 4 cycle microcycle will be performed after reset. The microcycle length is
+//  sampled in state 2, (C1 == 1). This allows either the microprogram or exter-
+//  nal logic to control the length of each microcycle that the MPCv3 performs.
+
+always @(posedge Clk)
+begin
+    if(MPC_Rst)
+        MC <= #1 ((|uLen) ? 0 : 2);
+    else
+        case(MC)
+            0 : MC <= #1 ((uLen[1]) ? 1 : 2);   // First cycle of microcycle
+            1 : MC <= #1 ((Wait)    ? 1 : 3);   // 2nd of 4 cycle microcycle
+            3 : MC <= #1 ((Wait)    ? 3 : 2);   // 3rd of 4 cycle microcycle
+            2 : MC <= #1 ((|uLen)   ? 0 : 2);   // Last cycle of microcycle
+        endcase
+end
+
+assign C4 = ~|MC;           // First cycle of microcycle (1 cycle in width)
+assign C3 =  |MC;           // Strobe 1
+assign C2 =   MC[1];        // Strobe 2
+assign C1 =  (MC == 2);     // Last cycle of microcycle (initial state)
+
+//  Assign next microcycle length
+
+assign NxtLenZ = (uLen == 0);
+
+//  Determine the MPC Enable signal
+
+always @(posedge Clk)
+begin
+    if(MPC_Rst)
+        MPC_En <= #1 1;
+    else
+        case(MC)
+            2'b00 : MPC_En <= #1 ((uLen[1]) ? 0 : 1);
+            2'b01 : MPC_En <= #1 0;
+            2'b11 : MPC_En <= #1 ~Wait;
+            2'b10 : MPC_En <= #1 NxtLenZ;
+        endcase
+end
 
 //  Implement 4-Level LIFO Stack
 
 always @(posedge Clk)
 begin
     if(MPC_Rst)
-        {D, C, B, A} <= #1 0;
-    else if(I == BSR)
-        {D, C, B, A} <= #1 {C, B, A, Next};
-    else if(I == RTS)
-        {D, C, B, A} <= #1 {{pAddrWidth{1'b0}}, D, C, B};
+        {A, B, C, D} <= #1 0;
+    else if(MPC_En)
+        if(I == BSR)
+            {A, B, C, D} <= #1 {Next, A, B, C};
+        else if(I == RTS)
+            {A, B, C, D} <= #1 {B, C, D, {pAddrWidth{1'b0}}};
 end
 
 //  Program Counter Incrementer
@@ -301,15 +349,15 @@ always @(posedge Clk)
 begin
     if(MPC_Rst)
         PC <= #1 pRst_Addrs;
-    else
-        PC <= #1 ((En) ? ((Rdy) ? PC_In : PC) : PC_In);
+    else if(MPC_En)
+        PC <= #1 PC_In;
 end
 
 //  Assign Memory Address Bus
 
 always @(*)
 begin
-    MA <= ((PLS) ? ((En) ? ((Rdy) ? PC_In : PC) : PC_In) : PC);
+    MA <= ((MPC_En) ? PC_In : PC);
 end
 
 endmodule

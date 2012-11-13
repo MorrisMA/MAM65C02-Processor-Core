@@ -130,11 +130,14 @@ module tb_M65C02_Core;
     reg     [15:0] val;             // Instruction Histogram variable
     reg     [ 7:0] i, j;            // loop counters
     
+    reg     [((5*8) - 1):0] Opcode;
+    reg     [((9*8) - 1):0] AddrMd;
+
 // Instantiate the Unit Under Test (UUT)
 
 M65C02_Core #(
                 .pInt_Hndlr(pInt_Hndlr),
-                .pM65C02_uPgm("M65C02_uPgm_V3.coe"),
+                .pM65C02_uPgm("M65C02_uPgm_V3a.coe"),
                 .pM65C02_IDec("M65C02_Decoder_ROM.coe")
             ) uut (
             .Rst(Rst), 
@@ -171,6 +174,75 @@ M65C02_Core #(
             .OP2(OP2)
         );
             
+// Instantiate the Reference Unit for Unit Under Test
+
+    //  Processor
+
+    wire Ref_IRQ_Msk;           // Interrupt Mask Bit from P
+
+    wire Ref_Done;              // Instruction Complete
+    wire Ref_SC;                // Single Cycle Instruction
+    wire [2:0] Ref_Mode;        // Instruction Type/Mode
+    wire Ref_RMW;               // Read-Modify-Write Operation
+    wire Ref_IntSvc;            // Interrupt Service Start
+    
+    wire Ref_Rdy;               // Internal Ready
+
+    wire [1:0] Ref_IO_Op;       // Bus Operation: 1 - WR; 2 - RD; 3 - IF
+
+    wire [15:0] Ref_AO;         // Address Output Bus
+    wire [ 7:0] Ref_DO;         // Data Output Bus
+
+	wire [ 7:0] Ref_A;          // Internal Register - Accumulator
+	wire [ 7:0] Ref_X;          // Internal Register - Pre-Index Register X
+	wire [ 7:0] Ref_Y;          // Internal Register - Post-Index Register Y
+	wire [ 7:0] Ref_S;          // Internal Register - Stack Pointer
+	wire [ 7:0] Ref_P;          // Internal Register - Program Status Word
+	wire [15:0] Ref_PC;         // Internal Register - Program Counter
+        
+	wire [7:0] Ref_IR;          // Internal Register - Instruction Register
+	wire [7:0] Ref_OP1;         // Internal Register - Operand Register 1
+	wire [7:0] Ref_OP2;         // Internal Register - Operand Register 2
+
+M65C02_Base #(
+                .pInt_Hndlr(pInt_Hndlr),
+                .pM65C02_uPgm("M65C02_uPgm_V3.coe"),
+                .pM65C02_IDec("M65C02_Decoder_ROM.coe")
+            ) ref (
+            .Rst(Rst), 
+            .Clk(Clk), 
+            
+            .IRQ_Msk(Ref_IRQ_Msk), 
+            .Int(Int), 
+            .Vector(Vector), 
+            
+            .Done(Ref_Done),
+            .SC(Ref_SC),
+            .Mode(Ref_Mode), 
+            .RMW(Ref_RMW),
+            .IntSvc(Ref_IntSvc),
+
+            .Rdy(Ref_Rdy),
+            
+            .IO_Op(Ref_IO_Op), 
+            .Ack_In(Ack), 
+            
+            .AO(Ref_AO), 
+            .DI(DI), 
+            .DO(Ref_DO), 
+            
+            .A(Ref_A), 
+            .X(Ref_X), 
+            .Y(Ref_Y), 
+            .S(Ref_S), 
+            .P(Ref_P), 
+            .PC(Ref_PC), 
+            
+            .IR(Ref_IR), 
+            .OP1(Ref_OP1), 
+            .OP2(Ref_OP2)
+        );
+            
 //  Instantiate RAM Module
 
 M65C02_RAM  #(
@@ -192,6 +264,10 @@ initial begin
     Int    = 0;
     Vector = pRst_Vector;
     Ack    = 1;
+    
+    // Intialize Simulation Time Format
+    
+    $timeformat (-9, 3, " ns", 15);
     
     //  Initialize Instruction Execution Histogram array
     
@@ -297,42 +373,99 @@ begin
 end
 
 //  Test Monitor System Function
-//
-//    wire IRQ_Msk;               // Interrupt Mask Bit from P
-//    wire Sim_Int;               // Simulated Interrupt Request
-//    reg  Int;                   // Interrupt Request
-//    reg  [15:0] Vector;         // Interrupt Vector
-//
-//    wire Done;                  // Instruction Complete
-//    wire SC;                    // Single Cycle Instruction
-//    wire [2:0] Mode;            // Instruction Type/Mode
-//    wire RMW;                   // Read-Modify-Write Operation
-//    wire IntSvc;                // Interrupt Service Start
-//    
-//    wire Rdy;                   // Internal Ready
-//
-//    wire [1:0] IO_Op;           // Bus Operation: 1 - WR; 2 - RD; 3 - IF
-//    reg  Ack;                   // Read/Write Data Transfer Acknowledge
-//
-//    wire [15:0] AO;             // Address Output Bus
-//    wire [ 7:0] DI;             // Data Input Bus
-//    wire [ 7:0] DO;             // Data Output Bus
-//
-//	wire [ 7:0] A;              // Internal Register - Accumulator
-//	wire [ 7:0] X;              // Internal Register - Pre-Index Register X
-//	wire [ 7:0] Y;              // Internal Register - Post-Index Register Y
-//	wire [ 7:0] S;              // Internal Register - Stack Pointer
-//	wire [ 7:0] P;              // Internal Register - Program Status Word
-//	wire [15:0] PC;             // Internal Register - Program Counter
-//        
-//	wire [7:0] IR;              // Internal Register - Instruction Register
-//	wire [7:0] OP1;             // Internal Register - Operand Register 1
-//	wire [7:0] OP2;             // Internal Register - Operand Register 2
 
 always @(*)
 begin
     $monitor("%b, %b, %b, %h, %b, %b, %h, %b, %b, %b, %h, %b, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h",
              IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
 end
+
+//  Compare UUT to REF, and pause simulation when differences encountered
+
+always @(posedge Clk)
+begin
+    #1.1;
+    if(Ref_IRQ_Msk != IRQ_Msk) begin
+        $display("\tError(%t): IRQ_Msk incorrect - found %b; expected %b\n", $realtime, IRQ_Msk, Ref_IRQ_Msk);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_Done != Done) begin
+        $display("\tError(%t): Done incorrect - found %b; expected %b\n", $realtime, Done, Ref_Done);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_SC != SC) begin
+        $display("\tError(%t): SC incorrect - found %b; expected %b\n", $realtime, SC, Ref_SC);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_Mode != Mode) begin
+        $display("\tError(%t): Mode incorrect - found %h; expected %h\n", $realtime, Mode, Ref_Mode);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_RMW != RMW) begin
+        $display("\tError(%t): RMW incorrect - found %b; expected %b\n", $realtime, RMW, Ref_RMW);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_IntSvc != IntSvc) begin
+        $display("\tError(%t): IntSvc incorrect - found %b; expected %b\n", $realtime, IntSvc, Ref_IntSvc);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_Rdy != Rdy) begin
+        $display("\tError(%t): Rdy incorrect - found %b; expected %b\n", $realtime, Rdy, Ref_Rdy);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_IO_Op != IO_Op) begin
+        $display("\tError(%t): IO_Op incorrect - found %d; expected %d\n", $realtime, IO_Op, Ref_IO_Op);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_AO != AO) begin
+        $display("\tError(%t): AO incorrect - found %h; expected %h\n", $realtime, AO, Ref_AO);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_DO != DO) begin
+        $display("\tError(%t): DO incorrect - found %h; expected %h\n", $realtime, DO, Ref_DO);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_A != A) begin
+        $display("\tError(%t): A incorrect - found %h; expected %h\n", $realtime, A, Ref_A);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_X != X) begin
+        $display("\tError(%t): X incorrect - found %h; expected %h\n", $realtime, X, Ref_X);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_Y != Y) begin
+        $display("\tError(%t): Y incorrect - found %h; expected %h\n", $realtime, Y, Ref_Y);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_S != S) begin
+        $display("\tError(%t): S incorrect - found %h; expected %h\n", $realtime, S, Ref_S);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_P != P) begin
+        $display("\tError(%t): P incorrect - found %h; expected %h\n", $realtime, P, Ref_P);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_PC != PC) begin
+        $display("\tError(%t): PC incorrect - found %h; expected %h\n", $realtime, PC, Ref_PC);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_IR != IR) begin
+        $display("\tError(%t): IR incorrect - found %h; expected %h\n", $realtime, IR, Ref_IR);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_OP1 != OP1) begin
+        $display("\tError(%t): OP1 incorrect - found %h; expected %h\n", $realtime, OP1, Ref_OP1);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end else if(Ref_OP2 != OP2) begin
+        $display("\tError(%t): OP2 incorrect - found %h; expected %h\n", $realtime, OP2, Ref_OP2);
+        @(posedge Clk); @(posedge Clk); @(posedge Clk); @(posedge Clk);
+        $stop;
+    end
+end
+
+////////////////////////////////////////////////////////////////////////////////
+
+`include "M65C02_Mnemonics.txt"
 
 endmodule

@@ -84,7 +84,7 @@ endh
 --                          the N, Z, and C bits, when only N, Z are updated by
 --                          these instructions. Similarly, corrected the CC bits
 --                          updated by BIT instructions. Bit imm only updates Z,
---                          while the other update N, V, and Z.
+--                          while the others update N, V, and Z.
 --
 --  0009    12B19   mam     Added missing instruction: STZ dp,X
 --
@@ -179,7 +179,7 @@ TSB         .equ    14  -- ALU <= M |  A;                  Z <= ~|(A & M);
 CMP         .equ    15  -- ALU <= Q + ~M + 1  N <= ALU[7]; Z <= ~|ALU; C <= COut
 
 --------------------------------------------------------------------------------
---  ALU Q Operand Select (defualt ALU Q Operand - A)
+--  ALU Q Operand Select (default ALU Q Operand - A)
 --------------------------------------------------------------------------------
 
 QS_A      .equ    0   -- Select A (default)

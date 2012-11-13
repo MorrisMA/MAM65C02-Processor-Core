@@ -73,7 +73,7 @@ Memory-Images
 -------------
 
     M65C02_Decoder_ROM.coe  - M65C02 core microprogram ALU control fields
-    M65C02_uPgm_V3.coe      - M65C02 core microprogram (Addressing mode control)
+    M65C02_uPgm_V3a.coe     - M65C02 core microprogram (Addressing mode control)
     M65C02_Tst2.txt         - Memory initialization file for M65C02 test program
 
 Microprogram-Sources
@@ -81,8 +81,8 @@ Microprogram-Sources
     
     M65C02_Decoder_ROM.txt      - M65C02 core microprogram ALU control fields
         M65C02_Decoder_ROM.out  - Listing file
-    M65C02_uPgm_V3.txt          - M65C02 core microprogram (Addressing mode control)
-        M65C02_uPgm_V3.out      - Listing file
+    M65C02_uPgm_V3a.txt         - M65C02 core microprogram (Addressing mode control)
+        M65C02_uPgm_V3a.out     - Listing file
 
 RTL
 -------------
@@ -90,7 +90,8 @@ RTL
 The implementation of the core provided consists of five Verilog source files:
 
     M65C02_Core.v               - Top level module
-        M65C02_MPC.v            - Microprogram Controller (Fairchild F9408 MPC)
+        M65C02_MPCv3.v          - Microprogram Controller (Fairchild F9408 MPC)
+        M65C02_AddrGen.v        - M65C02 Address Generator module
         M65C02_ALU.v            - M65C02 ALU module
             M65C02_BIN.v        - M65C02 Binary Mode Adder module
             M65C02_BCD.v        - M65C02 Decimal Mode Adder module

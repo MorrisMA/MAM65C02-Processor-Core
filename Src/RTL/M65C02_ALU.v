@@ -358,7 +358,10 @@
 //                          applied this behavior of the B bit to PHP instruc-
 //                          tion. The number of FFs used to implement PSW has
 //                          been decreased by 1, and the declaration of B has
-//                          been removed from the source. 
+//                          been removed from the source.
+//
+//  1.50    12K12   MAM     Modified the stack pointer logic to eliminate extra
+//                          adder. 
 //
 // Additional Comments:
 //
@@ -804,19 +807,18 @@ assign P = {N, V, 1'b1, ((CCSel == pBRK) | (OSel == pSel_P)), D, I, Z, C};
 //  Stack Pointer
 //
 
-assign WE_S = ((SelS & Valid) | (StkOp[1])) & Rdy;
+assign Ld_S = Rdy & (SelS & Valid);
+assign CE_S = Rdy & StkOp[1];
 
 always @(posedge Clk)
 begin
     if(Rst)
         S <= #1 pStkPtr_Rst;
-    else if(WE_S)
-        case({SelS, StkOp[0]})
-            0 : S <= #1 (S - 1);    // Push
-            1 : S <= #1 (S + 1);    // Pop
-            2 : S <= #1 Out;        // TXS
-            3 : S <= #1 Out;        // TXS
-        endcase
+    else if(Ld_S)
+        S <= #1 X;                          // TXS
+    else if(CE_S)
+        S <= #1 ((StkOp[0]) ? (S + 1)       // Pop
+                            : (S - 1));     // Push
 end
 
 //  Assign StkPtr Multiplexer for Push (0) and Pop (1) operation

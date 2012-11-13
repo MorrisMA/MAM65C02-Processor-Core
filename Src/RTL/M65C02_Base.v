@@ -244,21 +244,6 @@
 //  2.30    12K03   MAM     Integrated version 3 of the MPC which includes a
 //                          built-in microcycle length controller.
 //
-//  2.40    12K12   MAM     Cleaned up, and replaced Wait signal in variable
-//                          microcode with a ZP control signal. When asserted,
-//                          ZP forces a % 256 address calculation. Applies to
-//                          zp,X; zp,Y; (zp,X); and (zp),Y addressing modes. In
-//                          zp,X and zp,Y addressing modes, the indexed zp value
-//                          must wrap araund the 256 boundary. In (zp,X), both
-//                          the low and the high byte of the 16-bit pointer are
-//                          in page 0. The 8-bit index operation must be wrapp-
-//                          ed on page 0, and so must the second, the high byte
-//                          of the address. In (zp),Y, the index operation is
-//                          allowed to cross a page boundary, i.e. not % 256.
-//                          But both bytes of the pointer must be fetched from
-//                          page 0. Therefore, the increment operation to get
-//                          the second byte must be wrapped to page 0.
-//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -300,7 +285,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-module M65C02_Core #(
+module M65C02_Base #(
     parameter pStkPtr_Rst  = 8'hFF, // Stk Ptr Value after Reset
     parameter pInt_Hndlr   = 0,     // _Int microroutine address, Reset default
     parameter pM65C02_uPgm = "M65C02_uPgm_V3.coe",
@@ -411,6 +396,8 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 // Local Signal Declarations
 //
 
+wire    Ack;                            // External Ack gated by Wait
+
 wire    [1:0] uLen;                     // Microcycle Length Select
 wire    Last;                           // Last cycle of microcycle
 
@@ -431,7 +418,7 @@ wire    [(pROM_AddrWidth - 1):0] MA;    // MPC uP ROM Address Output
 reg     [(pROM_Width - 1):0] uPL;       // MPC uP ROM Pipeline Register
 //
 wire    [(pROM_AddrWidth - 1):0] uP_BA; // uP Branch Address Field
-wire    ZP;                             // Zero Page Addressing Control Field
+wire    Wait;
 wire    [3:0] NA_Op;                    // Memory Address Register Control Fld
 wire    [1:0] PC_Op;                    // Program Counter Control Field
 wire    [1:0] DI_Op;                    // Memory Data Input Control Field
@@ -441,6 +428,8 @@ wire    [2:0] Reg_WE;                   // Register Write Enable Control Field
 wire    ISR;                            // Asserted during interrupt entry
 
 reg     En;                             // ALU Enable Control Field
+
+wire    ZP;                             // Address Generator % 256 Command
 
 //  Instruction Decoder ROM
 
@@ -467,7 +456,9 @@ wire    Valid;                      // M65C02 ALU Output Valid Signal
 wire    [7:0] StkPtr;               // M65C02 ALU Stack Pointer Logic Output
 wire    CC;                         // ALU Condition Code Output
 
-wire    [15:0] dPC;                 // Pipeline Compensation Register for PC
+//wire    [15:0] AL, AR, NA;          // Address Generator Signals
+//wire    [15:0] MAR;                 // Memory Address Register
+wire    [15:0] dPC;                 // Pipeline Compensation Register
 
 wire    CE_IR, CE_OP1, CE_OP2;      // Clock Enables: IR, OP1, and OP2
 
@@ -479,11 +470,15 @@ wire    D;                          // BCD mode bit in P
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+//  Gate Ack_In
+
+assign Ack = ((Wait) ? Ack_In : 1'b1);
+
 //  Generate Internal Ready Signal
 
 always @(*)
 begin
-    case({Done, (|Op & |Reg_WE), Valid, Last})
+    case({Done, (|Op & |Reg_WE), Valid, Ack})
         4'b0000 : Rdy <= 0;
         4'b0001 : Rdy <= 1;     // Non-ALU external cycle ready
         4'b0010 : Rdy <= 0;
@@ -542,28 +537,25 @@ assign uLen[0] = D & ((Op == pADC) | (Op == pSBC)) & BMW; // BCD ADC/SBC op
 
 //  Instantiate Microprogram Controller/Sequencer - modified F9408A MPC
 
-M65C02_MPCv3    #(
-                    .pAddrWidth(pROM_AddrWidth)
-                ) MPCv3 (
-                    .Rst(Rst), 
-                    .Clk(Clk),
-                    
-                    .uLen(uLen),                
-                    .Wait(~Ack_In),         // Wait state request
-                    
-                    .C4(),
-                    .C3(),
-                    .C2(),
-                    .C1(Last),              // Last cycle of microcycle
-                    
-                    .I(I),                  // Instruction 
-                    .T(T),                  // Test signal input
-                    .MW(MW),                // Multi-way branch inputs
-                    .BA(BA),                // Branch address input
-                    .Via(Via),              // BRVx multiplexer control output
+M65C02_MPC #(
+                .pAddrWidth(pROM_AddrWidth)
+            ) MPC (
+                .Rst(Rst), 
+                .Clk(Clk),
+                
+                .I(I),                      // Instruction 
+                .T(T),                      // Test signal input
+                .MW(MW),                    // Multi-way branch inputs
+                .BA(BA),                    // Branch address input
+                .Via(Via),                  // BRVx multiplexer control output
 
-                    .MA(MA)                 // Microprogram ROM address output
-                );
+                .En(Wait),                  // Enable Ready Input
+                .Rdy(Rdy),                  // Ready Input
+
+                .PLS(1'b1),                 // Set for Pipelined Mode 
+                
+                .MA(MA)                     // Microprogram ROM address output
+            );
 
 //  Infer Microprogram ROM and initialize with file created by MCP_Tool
 
@@ -577,19 +569,19 @@ end
 
 //  Assign uPL fields
 
-assign I      = uPL[31:28];     // MPC Instruction Field (4)
-assign uP_BA  = uPL[27:19];     // MPC Branch Address Field (9)
-assign ZP     = uPL[18];        // When Set, ZP % 256 addressing required (1)
-assign SC     = uPL[17];        // Single Cycle Enable (1)
-assign Done   = uPL[16];        // Multi-cycle Instruction Complete (1)
-assign NA_Op  = uPL[15:12];     // Next Address Operation (4)
-assign PC_Op  = uPL[11:10];     // Program Counter Control (2)
-assign IO_Op  = uPL[9:8];       // IO Operation Control (2)
-assign DI_Op  = uPL[7:6];       // DI Demultiplexer Control (2)
-assign DO_Op  = uPL[7:6];       // DO Multiplexer Control (2) (same as DI_Op)
-assign Stk_Op = uPL[5:4];       // Stack Pointer Control Field (2)
-assign Reg_WE = uPL[3:1];       // Register Write Enable Field (3)
-assign ISR    = uPL[0];         // Set to clear D and set I on interrupts (1)
+assign I       = uPL[31:28];    // MPC Instruction Field (4)
+assign uP_BA   = uPL[27:19];    // MPC Branch Address Field (9)
+assign Wait    = uPL[18];       // When Set, Conditional Execution Required (1)
+assign SC      = uPL[17];       // Single Cycle Enable (1)
+assign Done    = uPL[16];       // Multi-cycle Instruction Complete (1)
+assign NA_Op   = uPL[15:12];    // Next Address Operation (4)
+assign PC_Op   = uPL[11:10];    // Program Counter Control (2)
+assign IO_Op   = uPL[9:8];      // IO Operation Control (2)
+assign DI_Op   = uPL[7:6];      // DI Demultiplexer Control (2)
+assign DO_Op   = uPL[7:6];      // DO Multiplexer Control (2) (same as DI_Op)
+assign Stk_Op  = uPL[5:4];      // Stack Pointer Control Field (2)
+assign Reg_WE  = uPL[3:1];      // Register Write Enable Field (3)
+assign ISR     = uPL[0];        // Set to clear D and set I on interrupts (1)
 
 //  Decode DI_Op Control Field
 
@@ -664,6 +656,8 @@ assign  CCSel  = IDEC[12: 8];     // M65C02 ALU Condition Code Control Field
 assign  Opcode = IDEC[ 7: 0];     // M65C02 Instruction Opcode (Reserved)
 
 //  Next Address Generator
+
+assign ZP = ((NA_Op == pNA_DPX) | (NA_Op == pNA_DPY));
 
 M65C02_AddrGen  AddrGen (
                     .Rst(Rst), 

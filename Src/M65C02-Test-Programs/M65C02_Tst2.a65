@@ -55,15 +55,24 @@ IRQ_Off     equ     $FFFF       ;; Clr External Interrupt Request
             code
             org     0
 ;
+            db      (hi Return)
+            dw      -Return
+;
+            org     8             
+;
 pDPI        dw      DP          ;; DP  = (pDPI)
 pDPXI       dw      DPX         ;; DPX = (pDPI,X) {X = 2}
 pDPIY       dw      DPY         ;; DPY = (pDPI),Y {Y = 2}
 ;
-            org     8
+            org     16
 ;
 DP          db      0           ;; DP;  DP,X (X = 0); DP,Y (Y = 0)
 DPX         db      0           ;; DPX; DP,X (X = 1); DP,Y (Y = 1)
-DPY         db      0           ;; DPY; DP,X (X = 2); DP,Y (Y = 2);
+DPY         db      0           ;; DPY; DP,X (X = 2); DP,Y (Y = 2)
+;
+            org     255
+;
+            db      (lo Return)
 ;
             bss
             org     256
@@ -148,23 +157,23 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             lda     #$55        ;; Imm, A   = 0x55, P = 0x24
             ora     #$AA        ;; Imm, A   = 0xFF, P = 0xA4
             pha                 ;; Psh, A   = 0xFF, P = 0xA4
-            plp                 ;; Pop, A   = 0xFF, P = 0xFF
+            plp                 ;; Pop, A   = 0xFF, P = 0xEF
             bvc     *           ;; Stop if ~V
             bne     *           ;; Stop if ~Z
             bcc     *           ;; Stop if ~C
             bpl     *           ;; Stop if ~N
 ;;
-            cmp     #$FF        ;; Imm, A   = 0xFF, P = 0x7F Make sure A is -1
-            bne     *           ;; Rel, A   = 0xFF, P = 0x7F
-            bmi     *           ;; Rel, A   = 0xFF, P = 0x7F
-            bcc     *           ;; Rel, A   = 0xFF, P = 0x7F
+            cmp     #$FF        ;; Imm, A   = 0xFF, P = 0x6F Make sure A is -1
+            bne     *           ;; Rel, A   = 0xFF, P = 0x6F
+            bmi     *           ;; Rel, A   = 0xFF, P = 0x6F
+            bcc     *           ;; Rel, A   = 0xFF, P = 0x6F
 ;;
-            clc                 ;; Imp, A   = 0xFF, P = 0x7E
-            cld                 ;; Imp, A   = 0xFF, P = 0x76
-            clv                 ;; Imm, A   = 0xFF, P = 0x36
-            adc     #$01        ;; Imm, A   = 0x00, P = 0x37
-            ora     #$04        ;; Imm, A   = 0x04, P = 0x35
-            pha                 ;; Psh, A   = 0x04, P = 0x35
+            clc                 ;; Imp, A   = 0xFF, P = 0x6E
+            cld                 ;; Imp, A   = 0xFF, P = 0x66
+            clv                 ;; Imm, A   = 0xFF, P = 0x66
+            adc     #$01        ;; Imm, A   = 0x00, P = 0x27
+            ora     #$04        ;; Imm, A   = 0x04, P = 0x25
+            pha                 ;; Psh, A   = 0x04, P = 0x25
             plp                 ;; Pop, A   = 0x04, P = 0x24
 ;;
             ldy     #$AA        ;; Imm, Y   = 0xAA, P = 0xA4
@@ -174,56 +183,56 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             bcc     *           ;; Rel, Y   = 0xAA, P = 0x27
             phy
 ;;
-            ldx     #$55        ;; Imm, X   = 0x55, P = 0x24
+            ldx     #$55        ;; Imm, X   = 0x55, P = 0x25
             cpx     #$55        ;; Imm, X   = 0x55, P = 0x27
             bne     *           ;; Rel, X   = 0x55, P = 0x27
             bmi     *           ;; Rel, X   = 0x55, P = 0x27
             bcc     *           ;; Rel, X   = 0x55, P = 0x27
             phx
 ;;
-            ply                 ;; Imm, Y   = 0x55, P = 0x24
+            ply                 ;; Imm, Y   = 0x55, P = 0x25
             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
             bne     *           ;; Rel, Y   = 0x55, P = 0x27
             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
 ;;
-            plx                 ;; Imm, X   = 0xAA, P = 0xA4
+            plx                 ;; Imm, X   = 0xAA, P = 0xA5
             cpx     #$AA        ;; Imm, X   = 0xAA, P = 0x27
             bne     *           ;; Rel, X   = 0xAA, P = 0x27
             bmi     *           ;; Rel, X   = 0xAA, P = 0x27
             bcc     *           ;; Rel, X   = 0xAA, P = 0x27
 ;;
-            bit     #$04        ;; Imm, A   = 0x04, P = 0x24
-            beq     *           ;; Rel, A   = 0x04, P = 0x24
-            bit     #$00        ;; Imm, A   = 0x04, P = 0x26
-            bne     *           ;; Rel, A   = 0x04, P = 0x26
+            bit     #$04        ;; Imm, A   = 0x04, P = 0x25
+            beq     *           ;; Rel, A   = 0x04, P = 0x25
+            bit     #$00        ;; Imm, A   = 0x04, P = 0x27
+            bne     *           ;; Rel, A   = 0x04, P = 0x27
 ;;
-            tya                 ;; Imm, A   = 0x55, P = 0x24
+            tya                 ;; Imm, A   = 0x55, P = 0x25
             cmp     #$55        ;; Imm, A   = 0x55, P = 0x27
             bne     *           ;; Rel, A   = 0x55, P = 0x27
             bmi     *           ;; Rel, A   = 0x55, P = 0x27
             bcc     *           ;; Rel, A   = 0x55, P = 0x27
 ;;
-            tay                 ;; Imm, Y   = 0x55, P = 0x24
+            tay                 ;; Imm, Y   = 0x55, P = 0x25
             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
             bne     *           ;; Rel, Y   = 0x55, P = 0x27
             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
 ;;
-            txa                 ;; Imm, A   = 0xAA, P = 0xA4
+            txa                 ;; Imm, A   = 0xAA, P = 0xA5
             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
             bne     *           ;; Rel, A   = 0xAA, P = 0x27
             bmi     *           ;; Rel, A   = 0xAA, P = 0x27
             bcc     *           ;; Rel, A   = 0xAA, P = 0x27
 ;;
-            tax                 ;; Imm, X   = 0xAA, P = 0xA4
+            tax                 ;; Imm, X   = 0xAA, P = 0xA5
             cpx     #$AA        ;; Imm, X   = 0xAA, P = 0x27
             bne     *           ;; Rel, X   = 0xAA, P = 0x27
             bmi     *           ;; Rel, X   = 0xAA, P = 0x27
             bcc     *           ;; Rel, X   = 0xAA, P = 0x27
 ;;
-            tsx                 ;; Imm, X   = 0xFF, P = 0xA4
-            txs                 ;; Imm, S   = 0xFF, P = 0xA4
+            tsx                 ;; Imm, X   = 0xFF, P = 0xA5
+            txs                 ;; Imm, S   = 0xFF, P = 0xA5
             cpx     #$FF        ;; Imm, X   = 0xFF, P = 0x27
             bne     *           ;; Rel, X   = 0xFF, P = 0x27
             bmi     *           ;; Rel, X   = 0xFF, P = 0x27
@@ -235,11 +244,11 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             cmp     #$54        ;; Imm, A   = 0x54, P = 0x27
             bne     *           ;; Rel, A   = 0x54, P = 0x27
 ;;
-            rol     a           ;; Acc, A   = 0xA9, P = 0xA4
+            rol     a           ;; Acc, A   = 0xA9, P = 0xA5
             bpl     *           ;; Rel, A   = 0xA9, P = 0xA4
             bcs     *           ;; Rel, A   = 0xA9, P = 0xA4
-            cmp     #$A9        ;; Imm, A   = 0xA9, P = 0x27
-            bne     *           ;; Rel, A   = 0xA9, P = 0x27
+            cmp     #$A9        ;; Imm, A   = 0xA9, P = 0x26
+            bne     *           ;; Rel, A   = 0xA9, P = 0x26
 ;;
             lsr     a           ;; Acc, A   = 0x54, P = 0x25
             bmi     *           ;; Rel, A   = 0x54, P = 0x25
@@ -253,7 +262,7 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
             bne     *           ;; Rel, A   = 0xAA, P = 0x27
 ;;
-            inc     a           ;; Acc, A   = 0xAB, P = 0xA4
+            inc     a           ;; Acc, A   = 0xAB, P = 0xA5
             cmp     #$AB        ;; Imm, A   = 0xAB, P = 0x27
             bne     *           ;; Rel, A   = 0xAB, P = 0x27
             bmi     *           ;; Rel, A   = 0xAB, P = 0x27
@@ -265,13 +274,13 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             bmi     *           ;; Rel, X   = 0x00, P = 0x27
             bcc     *           ;; Rel, X   = 0x00, P = 0x27
 ;;
-            iny                 ;; Imp, Y   = 0x56, P = 0x24
+            iny                 ;; Imp, Y   = 0x56, P = 0x25
             cpy     #$56        ;; Imm, Y   = 0x56, P = 0x27
             bne     *           ;; Rel, Y   = 0x56, P = 0x27
             bmi     *           ;; Rel, Y   = 0x56, P = 0x27
             bcc     *           ;; Rel, Y   = 0x56, P = 0x27
 ;;
-            dec     a           ;; Acc, A   = 0xAA, P = 0xA4
+            dec     a           ;; Acc, A   = 0xAA, P = 0xA5
             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
             bne     *           ;; Rel, A   = 0xAA, P = 0x27
             bmi     *           ;; Rel, A   = 0xAA, P = 0x27
@@ -297,9 +306,9 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
 ;;
 ;;  Direct/Zero Page Instructions
 ;;
-            dec     a           ;; Acc,   A   = 0xFF, P = 0xA4
-            sta     DP          ;; WO_DP, DP  = 0xFF, P = 0xA4
-            rol     a           ;; Acc,   A   = 0xFE, P = 0xA5
+            dec     a           ;; Acc,   A   = 0xFF, P = 0xA5
+            sta     DP          ;; WO_DP, DP  = 0xFF, P = 0xA5
+            rol     a           ;; Acc,   A   = 0xFF, P = 0xA5
             ora     DP          ;; RO_DP, A   = 0xFF, P = 0xA5
             cmp     #$FF        ;; Imm,   A   = 0xFF, P = 0x27
             bne     *           ;; Rel,   A   = 0xFF, P = 0x27
@@ -312,27 +321,27 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             bne     *           ;; Rel,   A   = 0x00, P = 0x27
 ;;
             stz     DP          ;; WO_DP, DP  = 0x00, p = 0x27
-            dey                 ;; Imp,   Y   = 0xFF, P = 0xA4
-            sty     DP          ;; RO_DP, Y   = 0xFF, P = 0xA4
+            dey                 ;; Imp,   Y   = 0xFF, P = 0xA5
+            sty     DP          ;; RO_DP, Y   = 0xFF, P = 0xA5
             iny                 ;; Imp,   Y   = 0x00, P = 0x27
-            ldy     DP          ;; RO_DP, Y   = 0xFF, P = 0xA4
+            ldy     DP          ;; RO_DP, Y   = 0xFF, P = 0xA5
             cpy     #$FF        ;; Imm,   Y   = 0xFF, P = 0x27
             bne     *
             cpy     DP          ;; RO_DP, Y   = 0xFF, P = 0x27
             bne     *
 ;;
             stz     DP          ;; WO_DP, DP  = 0x00, p = 0x27
-            dex                 ;; Imp,   X   = 0xFF, P = 0xA4
-            stx     DP          ;; RO_DP, DP  = 0xFF, P = 0xA4
+            dex                 ;; Imp,   X   = 0xFF, P = 0xA5
+            stx     DP          ;; RO_DP, DP  = 0xFF, P = 0xA5
             inx                 ;; Imp,   X   = 0x00, P = 0x27
-            ldx     DP          ;; RO_DP, X   = 0xFF, P = 0xA4
+            ldx     DP          ;; RO_DP, X   = 0xFF, P = 0xA5
             cpx     #$FF        ;; Imm,   X   = 0xFF, P = 0x27
             bne     *
             cpx     DP          ;; RO_DP, X   = 0xFF, P = 0x27
             bne     *
 ;;
-            txa                 ;; Imp,   A   = 0xFF, P = 0xA4
-            eor     DP          ;; RO_DP, A   = 0x00, P = 0x26
+            txa                 ;; Imp,   A   = 0xFF, P = 0xA5
+            eor     DP          ;; RO_DP, A   = 0x00, P = 0x27
             bne     *
 ;;
             lda     #$55        ;; Imm,   A   = 0x55, P = 0x25
@@ -357,8 +366,8 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
 ;;
 ;;  Direct/Zero Page Indexed Instructions
 ;;
-            lda     #$24        ;; Imm,    A   = 0x24, P = 0x67
-            pha                 ;; Imp,    A   = 0x24, P = 0x67
+            lda     #$24        ;; Imm,    A   = 0x24, P = 0x65
+            pha                 ;; Imp,    A   = 0x24, P = 0x65
             plp                 ;; Imp,    A   = 0x24, P = 0x24
 ;;
             stz     DP          ;; DP,     DP  = 0x00, P = 0x24
@@ -415,7 +424,6 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
 ;;
 ;;  Absolute Address Instructions
 ;;
-
             lda     #$24        ;; Imm,    A    = 0x24, P = 0x67
             pha                 ;; Imp,    A    = 0x24, P = 0x67
             plp                 ;; Imp,    A    = 0x24, P = 0x24
@@ -469,7 +477,6 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             stx     AbsX        ;; WO_Abs, AbsX = 0x00, P = 0x26
             cpx     Abs         ;; RO_Abs, X = 0x00, Abs = 0x00, P = 0x26
             bne     *           ;; Rel,    A    = 0xAA, P = 0x26
-
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -739,6 +746,74 @@ IRQ_Tst4:   sei
 ;;
             stz     IRQ_Off
 ;;
+;;  Test zp,x and zp,y page zero wrapping
+;;
+            lda     #$00        ;; clear Accumulator
+            tax                 ;; clear X
+            tay                 ;; clear Y
+            inx                 ;; increment X to test first index operation
+            iny                 ;; increment Y twice to force it to point to
+            iny                 ;; wrapped negative of the wrapped pointer.
+;;
+            clc                 ;; clear carry before summation
+            lda     $FE,x       ;; load low byte of the
+            adc     $FFFF,y     ;; add low bytes of Return and -Return
+;;
+            bne     *           ;; halt here if sum is not zero
+;;
+            inx                 ;; point to wrapped high bytes
+            iny
+            lda     $FE,x       ;; load high byte of Return
+            adc     $FFFF,y     ;; add high bytes of Return and -Return
+;;
+            bne     *           ;; halt here if the sum is not zero
+;;
+            dey                     ;; point back to lsb
+            ldx     $ff,y           ;; load lsb of -Return value
+            cpx     #(lo -Return)   ;; compare
+;;
+            bne     *               ;; halt here if the values are not equal
+;;
+            txa                     ;; complement value and store back
+            eor     #$ff            ;; pointer will point to location Return-1
+            tax                     ;; because of 1's complement math
+            stx     $ff,y
+;;
+            iny                     ;; point to msb
+            ldx     $ff,y           ;; load msb of -Return value
+            cpx     #(hi -Return)   ;; compare
+;;
+            bne     *               ;; halt here if the values are not equal
+;;
+            txa                     ;; complement value and store back
+            eor     #$ff            ;; pointer will point to location Return-1
+            tax                     ;; because of 1's complement math
+            stx     $ff,y
+;;
+;;  Test (dp), (dp,x), and (dp,y) address mode page 0 wrapping
+;;
+            lda     ($ff)           ;; load value stored in Return
+            ldy     #$01            ;; ptr stored at $0001 points to Return-1
+            cmp     ($01),y         ;; compare
+;;
+            bne     *               ;; halt here if the *($ff) <> *(*($01)+1)
+;;
+            ldx     #$02            ;; increment pointer at $0001
+            clc
+            lda     $FF,x           ;; load lsb from $0001
+            adc     #$01            ;; increment
+            sta     $FF,x           ;; store lsb
+            inx                     ;; point to msb 
+            lda     $FF,x           ;; load lsb from $0002
+            adc     #$00            ;; increment msb if carry out of lsb
+            sta     $FF,x
+;;
+            dex                     ;; point back to lsb
+            lda     ($ff,x)         ;; load opcode at Return
+            dec     $ff             ;; change pointer to point to Return-1
+            cmp     ($ff),y         ;; both pointers (after indexing) -> Return
+;;
+            bne     *
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  Prepare Registers for looping to start of the test program
