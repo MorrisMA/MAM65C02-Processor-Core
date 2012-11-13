@@ -24,14 +24,14 @@ instructions introduced by Rockwell in the R65C02, and additional instructions
 introduced by WDC in its 65C802/65C816 microprocessors.)
 
 The core handles an interrupt signal, which external logic asserts after it 
-processes any interrupts that it provides. That is, the core accepts and 
+processes any interrupts that it services. That is, the core accepts and 
 performs the interrupt trap processing, but the external logic must implement 
 the type of interrupt (maskable or non-maskable), and provide the vector to 
 the core. This implementation is different than the original processor's in 
 that an indirect jump through a predetermined address is not performed by the 
 core. The implementation envisioned is that the external interrupt controller 
 records the vectors for reset (RST), the non-maskable interrupt (NMI), or the 
-maskable interrupt (IRQ) and provides the apropriate vector when requested by 
+maskable interrupt (IRQ) and provides the appropriate vector when requested by 
 the core.
 
 The core assumes that the external memory is implemented as an asynchronous 
