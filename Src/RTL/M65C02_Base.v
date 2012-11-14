@@ -244,6 +244,12 @@
 //  2.30    12K03   MAM     Integrated version 3 of the MPC which includes a
 //                          built-in microcycle length controller.
 //
+//  2.40    12K13   MAM     Added DP and rDP signals, and changed the ZP control
+//                          signal to assert for any of the zero page addressing
+//                          modes. The rDP signal is used to enable zero page
+//                          address wrapping when the MAR is used to fetch the
+//                          second operand after an initial zero page access.
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -429,6 +435,8 @@ wire    ISR;                            // Asserted during interrupt entry
 
 reg     En;                             // ALU Enable Control Field
 
+wire    DP;                             // Direct Page addressing mode
+reg     rDP;                            // Registered DP
 wire    ZP;                             // Address Generator % 256 Command
 
 //  Instruction Decoder ROM
@@ -655,9 +663,29 @@ assign  OSel   = IDEC[15:13];     // M65C02 ALU Register Output Select Field
 assign  CCSel  = IDEC[12: 8];     // M65C02 ALU Condition Code Control Field
 assign  Opcode = IDEC[ 7: 0];     // M65C02 Instruction Opcode (Reserved)
 
-//  Next Address Generator
+//  Compute Zero Page command to Address Generator
+//      A page 0 addressing mode is commanded by the microcode in the NA_Op
+//      field. Three such address calculations are generated. The zp and the
+//      zp indexed address modes are the basis of all of the page 0 addressing
+//      modes. The indirect zp addressing modes are generated using the direct
+//      zp page addressing modes. The initial page 0 access for the lsb of the
+//      pointer is followed by an automatic next operation on the MAR. Thus, if
+//      a DP address mode command is followed by a Nxt address command, then the
+//      second access is also a page 0 location and it must be wrapped. 
 
-assign ZP = ((NA_Op == pNA_DPX) | (NA_Op == pNA_DPY));
+assign DP = ((NA_Op == pNA_DPN) | (NA_Op == pNA_DPX) | (NA_Op == pNA_DPY));
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        rDP <= #1 0;
+    else
+        rDP <= #1 DP;
+end
+
+assign ZP = (DP | ((NA_Op == pNA_Nxt) & rDP));
+
+//  Next Address Generator
 
 M65C02_AddrGen  AddrGen (
                     .Rst(Rst), 
