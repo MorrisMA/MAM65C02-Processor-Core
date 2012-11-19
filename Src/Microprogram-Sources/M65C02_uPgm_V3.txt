@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0014
+File Revision: 0015
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -196,7 +196,18 @@ endh
 --
 --  0014    12D28   MAM     Corrected the _LDX_abs instruction. Improperly took
 --                          branch to _RO_AbsX instead of _RO_Abs. (Notified of
---                          error by Windfall @forum.6502.org.) 
+--                          error by Windfall @forum.6502.org.)
+--
+--  0015    12K17   MAM     Corrected entry for $22 from BRV1 to BRV3. Added
+--                          Done to the _Brk_imm microword. Matches Done for the
+--                          M65C02_MPCv3, and does not significantly alter the
+--                          significance of the Done signal; Done is asserted
+--                          for two cycles for BRK whereas it is asserted for
+--                          one cycle for other instructions. It is asserted for
+--                          two cycles because the _BRK microroutine is being
+--                          shared between BRK and interrupt handling. If sepa-
+--                          rate routines are used, then Done could be made to
+--                          assert for only one cycle.
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -603,11 +614,11 @@ _Imm:
     BRV1    _Nxt,1,1,, Pls, IF, IR,, WE_R           -- Instruction Fetch/Execute
 
 --------------------------------------------------------------------------------
---  Interrupt Entry - NMI, (unmasked) IRQ (falls through to second state of BRK)
+--  Interrupt Entry - NMI, (unmasked) IRQ (falls through to _BRK)
 --------------------------------------------------------------------------------
 
 _Int:
-    BRV2    _Brk,1,1, Stk, , WR, PCH, Psh, WE_R     -- Push PCH, capture Vector
+    BRV2    _Brk,1,1, Stk,, WR, PCH, Psh, WE_R      -- Push PCH, capture Vector
 
 --------------------------------------------------------------------------------
 --  BRK Entry - BRK #imm (_Int falls through to _Brk, see comment above)
@@ -911,7 +922,7 @@ _End_uPgm:
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _BRK_imm:
-    BRV2    _Brk,1,0, Stk,, WR, PCH, Psh, WE_P      -- Start Break Handler
+    BRV2    _Brk,1,1, Stk,, WR, PCH, Psh, WE_P      -- Start Break Handler
 _BPL_rel:
     BRV0    _Rel,1,0,, Rel, IF, OP1                 -- Read rel Value
 _JSR_abs:
@@ -987,7 +998,7 @@ _NOP_02:
 _ORA_dpi:
     BRV0    _RO_DPI,1,0,, Pls, IF, OP1              -- Read DP
 _NOP_22:
-    BRV1    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
 _AND_dpi:
     BRV0    _RO_DPI,1,0,, Pls, IF, OP1              -- Read DP
 _NOP_42:
@@ -1209,11 +1220,11 @@ _SEC:
 _PHA:
     BRV0    _Psh,1,0, Stk,, WR,, Psh                -- Push A
 _CLI:
-    BRV1    $,1,3,, Pls, IF, IR,, WE_P              -- Clear Interrupt Mask Flg
+    BRV1    $,1,1,, Pls, IF, IR,, WE_P              -- Clear Interrupt Mask Flg
 _PLA:
     BRV0    _Pop,1,0, Stk,, RD, OP1, Pop            -- Pop A
 _SEI:
-    BRV1    $,1,3,, Pls, IF, IR,, WE_P              -- Set Interrupt Mask Flag
+    BRV1    $,1,1,, Pls, IF, IR,, WE_P              -- Set Interrupt Mask Flag
 _DEY:
     BRV3    $,1,3,, Pls, IF, IR,, WE_Y              -- Decrement Y
 _TYA:

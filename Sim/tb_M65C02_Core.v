@@ -94,10 +94,12 @@ module tb_M65C02_Core;
     wire RMW;                   // Read-Modify-Write Operation
     wire IntSvc;                // Interrupt Service Start
     
+    wire [1:0] MC;              // Microcycle State
+    wire [1:0] MemTyp;          // Memory Access Type
+    reg  Wait;                  // Microcycle Wait State Request
     wire Rdy;                   // Internal Ready
 
     wire [1:0] IO_Op;           // Bus Operation: 1 - WR; 2 - RD; 3 - IF
-    reg  Ack;                   // Read/Write Data Transfer Acknowledge
 
     wire [15:0] AO;             // Address Output Bus
     wire [ 7:0] DI;             // Data Input Bus
@@ -153,11 +155,13 @@ M65C02_Core #(
             .RMW(RMW),
             .IntSvc(IntSvc),
 
+            .MC(MC), 
+            .MemTyp(MemTyp), 
+            .uLen(2'b0), 
+            .Wait(1'b0), 
             .Rdy(Rdy),
             
             .IO_Op(IO_Op), 
-            .Ack_In(Ack), 
-            
             .AO(AO), 
             .DI(DI), 
             .DO(DO), 
@@ -189,7 +193,8 @@ M65C02_Core #(
     wire Ref_Rdy;               // Internal Ready
 
     wire [1:0] Ref_IO_Op;       // Bus Operation: 1 - WR; 2 - RD; 3 - IF
-
+    reg  Ref_Ack;               // External Transfer Acknowledge
+    
     wire [15:0] Ref_AO;         // Address Output Bus
     wire [ 7:0] Ref_DO;         // Data Output Bus
 
@@ -225,7 +230,7 @@ M65C02_Base #(
             .Rdy(Ref_Rdy),
             
             .IO_Op(Ref_IO_Op), 
-            .Ack_In(Ack), 
+            .Ack_In(Ref_Ack), 
             
             .AO(Ref_AO), 
             .DI(DI), 
@@ -251,6 +256,8 @@ M65C02_RAM  #(
                 .pFileName("M65C02_Tst2.txt")
             ) RAM (
                 .Clk(Clk),
+                .Ext(1'b0),
+                .ZP(1'b1),
                 .WE((IO_Op == 1)),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),
                 .DI(DO),
@@ -263,11 +270,10 @@ initial begin
     Clk    = 1;
     Int    = 0;
     Vector = pRst_Vector;
-    Ack    = 1;
     
     // Intialize Simulation Time Format
     
-    $timeformat (-9, 3, " ns", 15);
+    $timeformat (-9, 3, " ns", 12);
     
     //  Initialize Instruction Execution Histogram array
     
@@ -293,6 +299,14 @@ end
 //
 
 always #5 Clk = ~Clk;
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//
+//  Generate Ack for Reference Core - M65C02_Base
+//
+
+always @(*) Ref_Ack = (MC == 0);
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -343,7 +357,7 @@ end
 always @(posedge Clk)
 begin
     $fstrobe(SV_Output, "%b, %b, %b, %h, %b, %b, %h, %b, %b, %b, %h, %b, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h",
-             IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
+             IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ref_Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
 
     if(Done & Rdy) begin
         if((AO == 16'h0210)) begin
@@ -377,7 +391,7 @@ end
 always @(*)
 begin
     $monitor("%b, %b, %b, %h, %b, %b, %h, %b, %b, %b, %h, %b, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h",
-             IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
+             IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ref_Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
 end
 
 //  Compare UUT to REF, and pause simulation when differences encountered

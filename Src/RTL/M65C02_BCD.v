@@ -65,6 +65,8 @@
 //
 //  1.02    12B19   MAM     Renamed module: MAM6502 => M6502_BCD.
 //
+//  1.10    12K17   MAM     Converted MSN_GT9, MSN_GT8, and LSN_GT9 to ROMs
+//
 // Additional Comments: 
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -138,9 +140,77 @@ end
 
 //  Generate Digit/Nibble Value Comparators
 
-always @(*) MSN_GT9 <= (rS[7:4] > 9);
-always @(*) MSN_GT8 <= (rS[7:4] > 8);
-always @(*) LSN_GT9 <= (rS[3:0] > 9);
+//always @(*) MSN_GT9 <= (rS[7:4] > 9);
+
+always @(*)
+begin
+    case(rS[7:4])
+        4'b0000 : MSN_GT9 <= 0;
+        4'b0001 : MSN_GT9 <= 0;
+        4'b0010 : MSN_GT9 <= 0;
+        4'b0011 : MSN_GT9 <= 0;
+        4'b0100 : MSN_GT9 <= 0;
+        4'b0101 : MSN_GT9 <= 0;
+        4'b0110 : MSN_GT9 <= 0;
+        4'b0111 : MSN_GT9 <= 0;
+        4'b1000 : MSN_GT9 <= 0;
+        4'b1001 : MSN_GT9 <= 0;
+        4'b1010 : MSN_GT9 <= 1;
+        4'b1011 : MSN_GT9 <= 1;
+        4'b1100 : MSN_GT9 <= 1;
+        4'b1101 : MSN_GT9 <= 1;
+        4'b1110 : MSN_GT9 <= 1;
+        4'b1111 : MSN_GT9 <= 1;
+    endcase
+end
+
+//always @(*) MSN_GT8 <= (rS[7:4] > 8);
+
+always @(*)
+begin
+    case(rS[7:4])
+        4'b0000 : MSN_GT8 <= 0;
+        4'b0001 : MSN_GT8 <= 0;
+        4'b0010 : MSN_GT8 <= 0;
+        4'b0011 : MSN_GT8 <= 0;
+        4'b0100 : MSN_GT8 <= 0;
+        4'b0101 : MSN_GT8 <= 0;
+        4'b0110 : MSN_GT8 <= 0;
+        4'b0111 : MSN_GT8 <= 0;
+        4'b1000 : MSN_GT8 <= 0;
+        4'b1001 : MSN_GT8 <= 1;
+        4'b1010 : MSN_GT8 <= 1;
+        4'b1011 : MSN_GT8 <= 1;
+        4'b1100 : MSN_GT8 <= 1;
+        4'b1101 : MSN_GT8 <= 1;
+        4'b1110 : MSN_GT8 <= 1;
+        4'b1111 : MSN_GT8 <= 1;
+    endcase
+end
+
+//always @(*) LSN_GT9 <= (rS[3:0] > 9);
+
+always @(*)
+begin
+    case(rS[3:0])
+        4'b0000 : LSN_GT9 <= 0;
+        4'b0001 : LSN_GT9 <= 0;
+        4'b0010 : LSN_GT9 <= 0;
+        4'b0011 : LSN_GT9 <= 0;
+        4'b0100 : LSN_GT9 <= 0;
+        4'b0101 : LSN_GT9 <= 0;
+        4'b0110 : LSN_GT9 <= 0;
+        4'b0111 : LSN_GT9 <= 0;
+        4'b1000 : LSN_GT9 <= 0;
+        4'b1001 : LSN_GT9 <= 0;
+        4'b1010 : LSN_GT9 <= 1;
+        4'b1011 : LSN_GT9 <= 1;
+        4'b1100 : LSN_GT9 <= 1;
+        4'b1101 : LSN_GT9 <= 1;
+        4'b1110 : LSN_GT9 <= 1;
+        4'b1111 : LSN_GT9 <= 1;
+    endcase
+end
 
 //  Adder Second Stage - Combinatorial; BCD Digit Adjustment
 

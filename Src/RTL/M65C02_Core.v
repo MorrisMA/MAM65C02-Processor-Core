@@ -303,29 +303,43 @@
 module M65C02_Core #(
     parameter pStkPtr_Rst  = 8'hFF, // Stk Ptr Value after Reset
     parameter pInt_Hndlr   = 0,     // _Int microroutine address, Reset default
-    parameter pM65C02_uPgm = "M65C02_uPgm_V3.coe",
+    parameter pM65C02_uPgm = "M65C02_uPgm_V3a.coe",
     parameter pM65C02_IDec = "M65C02_Decoder_ROM.coe"
 )(
     input   Rst,            // System Reset Input
     input   Clk,            // System Clock Input
-
+    
+    //  Processor Core Interrupt Interface
+    
     output  IRQ_Msk,        // Interrupt mask from P to Interrupt Handler
     input   Int,            // Interrupt input from Interrupt Handler
     input   [15:0] Vector,  // ISR Vector from Interrupt Handler
-
+    
+    //  Processor Core Status Interface
+    
     output  Done,           // Instruction Complete/Fetch Strobe
     output  SC,             // Single Cycle Instruction
     output  [2:0] Mode,     // Mode - Instruction Type/Mode
     output  RMW,            // Read-Modify-Write Operation
     output  reg IntSvc,     // Interrupt Service Start Indicator
     
+    //  Processor Core Memory Controller Interface
+    
+    output  [1:0] MC,       // Microcycle state:   2-C1; 0-C4; 1-C3; 3-C4;
+    output  [1:0] MemTyp,   // Memory access Type: 0-Pgm Memory; 1-Page 0;
+                            //                     2-Page 1;     3-Data Memory;
+    input   [1:0] uLen,     // Length for microcycle length controller
+    input   Wait,           // Wait Input (used in C3 & C4 to extend microcycle)
     output  reg Rdy,        // Internal Ready
-
-    output  [1:0] IO_Op,    // Instruction Fetch Strobe
-    input   Ack_In,         // Transfer Acknowledge
+    
+    //  Processor Core Memory Cycle Interface    
+    
+    output  [ 1:0] IO_Op,   // Instruction Fetch Strobe
     output  [15:0] AO,      // External Address
     input   [ 7:0] DI,      // External Data In
     output  reg [7:0] DO,   // External Data Out
+
+    // Processor Core Internal Registers
 
     output  [ 7:0] A,       // Accumulator
     output  [ 7:0] X,       // Index Register X
@@ -334,9 +348,9 @@ module M65C02_Core #(
     output  [ 7:0] P,       // Processor Status Word
     output  [15:0] PC,      // Program Counter
     
-    output  reg [ 7:0] IR,  // Instruction Register
-    output  reg [ 7:0] OP1, // Operand Register 1
-    output  reg [ 7:0] OP2  // Operand Register 2
+    output  reg [7:0] IR,   // Instruction Register
+    output  reg [7:0] OP1,  // Operand Register 1
+    output  reg [7:0] OP2   // Operand Register 2
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -411,7 +425,8 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 // Local Signal Declarations
 //
 
-wire    [1:0] uLen;                     // Microcycle Length Select
+wire    BCD_Op;                         // BCD Operation - requires extra cycle
+wire    [1:0] MC_Len;                   // Microcycle Length Select
 wire    Last;                           // Last cycle of microcycle
 
 wire    BRV1;                           // MPC BRV1 Instruction Decode
@@ -479,6 +494,12 @@ wire    D;                          // BCD mode bit in P
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+//  Define Microcycle and Instruction Cycle Status Signals
+
+assign Done = (|Via);           // Instruction Complete (1)     - ~BRV0
+assign SC   = (&Via);           // Single Cycle Instruction (1) -  BRV3             
+assign Last = (MC == 0);        // Microcycle Complete Signal
+
 //  Generate Internal Ready Signal
 
 always @(*)
@@ -534,11 +555,15 @@ end
 
 assign T = {3'b00, Valid};
 
-//  Determine Next Microcycle Length
+//  Determine if current instruction is an ADC/SBC in BCD mode
 
-//assign uLen[1] = |AO[15:14];                        // Ext. memory
-assign uLen[1] = 1'b0;
-assign uLen[0] = D & ((Op == pADC) | (Op == pSBC)) & BMW; // BCD ADC/SBC op
+assign BCD_Op = D & ((Op == pADC) | (Op == pSBC)) & BMW;    // BCD ADC/SBC op
+
+//  Determine Next Microcycle Length
+//      If current instruction is a BCD mode ADC/SBC, and current uLen input is
+//      equal to 0 (single cycle memory), then extend next microcycle by 1 cycle
+
+assign MC_Len = ((~|uLen) ? {1'b0, BCD_Op} : uLen);
 
 //  Instantiate Microprogram Controller/Sequencer - modified F9408A MPC
 
@@ -548,14 +573,10 @@ M65C02_MPCv3    #(
                     .Rst(Rst), 
                     .Clk(Clk),
                     
-                    .uLen(uLen),                
-                    .Wait(~Ack_In),         // Wait state request
-                    
-                    .C4(),
-                    .C3(),
-                    .C2(),
-                    .C1(Last),              // Last cycle of microcycle
-                    
+                    .uLen(MC_Len),          // Microcycle Length                
+                    .Wait(Wait),            // Microcycle Wait state request
+                    .MC(MC),                // Microcycle State
+
                     .I(I),                  // Instruction 
                     .T(T),                  // Test signal input
                     .MW(MW),                // Multi-way branch inputs
@@ -580,8 +601,7 @@ end
 assign I      = uPL[31:28];     // MPC Instruction Field (4)
 assign uP_BA  = uPL[27:19];     // MPC Branch Address Field (9)
 assign ZP     = uPL[18];        // When Set, ZP % 256 addressing required (1)
-assign SC     = uPL[17];        // Single Cycle Enable (1)
-assign Done   = uPL[16];        // Multi-cycle Instruction Complete (1)
+assign MemTyp = uPL[17:16];     // Memory Type (2)
 assign NA_Op  = uPL[15:12];     // Next Address Operation (4)
 assign PC_Op  = uPL[11:10];     // Program Counter Control (2)
 assign IO_Op  = uPL[9:8];       // IO Operation Control (2)

@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 //  Copyright 2012 by Michael A. Morris, dba M. A. Morris & Associates
 //
@@ -33,11 +33,11 @@
 //  Michael A. Morris
 //  Huntsville, AL
 //
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 `timescale 1ns / 1ps
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 // Company:         M. A. Morris & Associates 
 // Engineer:        Michael A. Morris 
 // 
@@ -45,10 +45,13 @@
 // Design Name:     WDC W65C02 Microprocessor Re-Implementation
 // Module Name:     M65C02_RAM 
 // Project Name:    C:\XProjects\ISE10.1i\MAM6502 
-// Target Devices:  Generic SRAM-base FPGA 
+// Target Devices:  Generic SRAM-based FPGA 
 // Tool versions:   Xilinx ISE10.1i SP3
 //
-// Description: 
+// Description:
+//
+//  The module provides a generic RAM model that can be used to simulate RAM
+//  found in an FPGA.
 //
 // Dependencies: 
 //
@@ -56,9 +59,23 @@
 //
 //  0.00    12B04   MAM     Initial File Creation
 //
+//  1.00    12K18   MAM     Modified the RAM model to support three different
+//                          kinds of RAM. The model supports asynchronous, LUT-
+//                          based RAM ({Ext, ZP} == 1), synchronous BRAM-based
+//                          RAM ({Ext, ZP} == 0 | 3), and synchronous, pipelined
+//                          RAM ({Ext, ZP} == 2). 
+//
 // Additional Comments: 
 //
-///////////////////////////////////////////////////////////////////////////////
+//  In normal use, the model provided in this module can be used to develop a
+//  memory controller for the M65C02_Core that supports LUT RAM for page 0
+//  acesses, BRAM for page 1 and internal program and data memory, and pipelined
+//  SynchRAM for external program and data memory. It is possible to support ex-
+//  ternal non-pipelined synchronous RAM by setting the RAM module to the BRAM
+//  mode and providing additional registers in the output paths but not on the
+//  input paths of the FPGA.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 module M65C02_RAM #(
     parameter pAddrSize = 10,
@@ -66,6 +83,9 @@ module M65C02_RAM #(
     parameter pFileName = "M65C02_RAM.txt"
 )(
     input   Clk,
+    
+    input   ZP,                         // Emulate LUT-based Asynchronous RAM
+    input   Ext,                        // Emulate BRAM-based Pipelined SyncSRAM
     
     input   WE,
     input   [(pAddrSize - 1):0] AI,
@@ -77,15 +97,37 @@ localparam pRAM_Max = ((2**pAddrSize) - 1);
 
 reg     [(pDataSize - 1):0] RAM [pRAM_Max:0];
 
+reg     rWE;
+reg     [(pAddrSize - 1):0] rAI;
+reg     [(pDataSize - 1):0] rDI, rDO;
+
+wire    W;
+wire    [(pAddrSize - 1):0] A;
+wire    [(pDataSize - 1):0] D;
+
+always @(posedge Clk)
+begin
+    {rWE, rAI, rDI} <= #1 {WE, AI, DI};
+end
+
+assign W = ((ZP) ? WE : rWE);
+assign A = ((ZP) ? AI : rAI);
+assign D = ((ZP) ? DI : rDI);
+
 initial
     $readmemh(pFileName, RAM, 0, pRAM_Max);
 
 always @(posedge Clk)
 begin
-    if(WE)
-        RAM[AI] <= #1 DI;
+    if(W)
+        RAM[A] <= #1 D;
 end
 
-assign DO = RAM[AI];
+always @(posedge Clk)
+begin
+    rDO <= #1 RAM[A];
+end
+
+assign DO = ((Ext) ? rDO : RAM[A]);
 
 endmodule

@@ -1,6 +1,6 @@
 header
 Project: M65C02_Decoder_ROM
-File Revision: 0012
+File Revision: 0013
 Author(s): Michael A. Morris
 Description: M65C02 Instruction Decoder ROM
 endh
@@ -16,7 +16,7 @@ endh
 --  information storage and retrieval system in violation of the license under
 --  which the source code is released.
 --
---  The souce code contained herein is free; it may be redistributed and/or 
+--  The souce code contained herein is free; it may be redistributed and/or
 --  modified in accordance with the terms of the GNU Lesser General Public
 --  License as published by the Free Software Foundation; either version 2.1 of
 --  the GNU Lesser General Public License, or any later version.
@@ -35,7 +35,7 @@ endh
 --  Boston, MA  02110-1301 USA
 --
 --  Further, no use of this source code is permitted in any form or means
---  without inclusion of this banner prominently in any derived works. 
+--  without inclusion of this banner prominently in any derived works.
 --
 --  Michael A. Morris
 --  Huntsville, AL
@@ -99,13 +99,15 @@ endh
 --                          to the processor status word.
 --
 --  0011    12B23   mam     Corrected incorrectly coded microword for NOP_1F.
---                          The ALU Op field was not set to XFR as it should 
+--                          The ALU Op field was not set to XFR as it should
 --                          have been.
 --
 --  0012    12C04   mam     Corrected two entries: ora (dp) and sta (dp),y. The
---                          first had an AND operation programmed instead of an 
+--                          first had an AND operation programmed instead of an
 --                          ORA. The second was typed in as an sty (dp),y, so
 --                          the output select field was set for Y instead of A.
+--
+--  0013    12K17   mam     RMW flag not set for INC and DEC instructions.
 --
 --------------------------------------------------------------------------------
 -- Instruction (Next Address and Data) Field
@@ -488,7 +490,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xC3      -- C3: NOP
     MEM     0,CMP,QS_Y,0,1,1,WS_P,    ,NZC ,0xC4      -- C4: CPY dp
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xC5      -- C5: CMP dp
-    MEM     0,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xC6      -- C6: DEC dp
+    MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xC6      -- C6: DEC dp
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xC7      -- C7: NOP
     INT     0,INC,QS_Y,1,0,1,WS_Y,    ,NZ  ,0xC8      -- C8: INY
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xC9      -- C9: CMP #imm
@@ -496,7 +498,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xCB      -- CB: NOP
     MEM     0,CMP,QS_Y,0,1,1,WS_P,    ,NZC ,0xCC      -- CC: CPY abs
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xCD      -- CD: CMP abs
-    MEM     0,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xCE      -- CE: DEC abs
+    MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xCE      -- CE: DEC abs
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xCF      -- CF: NOP
 
 --------------------------------------------------------------------------------
@@ -507,7 +509,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xD3      -- D3: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xD4      -- D4: NOP
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xD5      -- D5: CMP dp,X
-    MEM     0,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xD6      -- D6: DEC dp,X
+    MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xD6      -- D6: DEC dp,X
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xD7      -- D7: NOP
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,CLD ,0xD8      -- D8: CLD
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xD9      -- D9: CMP abs,Y
@@ -515,7 +517,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDB      -- DB: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDC      -- DC: NOP
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xDD      -- DD: CMP abs,X
-    MEM     0,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xDE      -- DE: DEC abs,X
+    MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xDE      -- DE: DEC abs,X
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDF      -- DF: NOP
 
 --------------------------------------------------------------------------------
@@ -526,7 +528,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xE3      -- E3: NOP
     MEM     0,CMP,QS_X,0,1,1,WS_P,    ,NZC ,0xE4      -- E4: CPX dp
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xE5      -- E5: SBC dp
-    MEM     0,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xE6      -- E6: INC dp
+    MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xE6      -- E6: INC dp
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xE7      -- E7: NOP
     INT     0,INC,QS_X,1,0,1,WS_X,    ,NZ  ,0xE8      -- E8: INX
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xE9      -- E9: SBC #imm
@@ -534,7 +536,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xEB      -- EB: NOP
     MEM     0,CMP,QS_X,0,1,1,WS_P,    ,NZC ,0xEC      -- EC: CPX abs
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xED      -- ED: SBC abs
-    MEM     0,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xEE      -- EE: INC abs
+    MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xEE      -- EE: INC abs
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xEF      -- EF: NOP
 
 --------------------------------------------------------------------------------
@@ -545,7 +547,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xF3      -- F3: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xF4      -- F4: NOP
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xF5      -- F5: SBC dp,X
-    MEM     0,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xF6      -- F6: INC dp,X
+    MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xF6      -- F6: INC dp,X
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xF7      -- F7: NOP
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,SED ,0xF8      -- F8: SED
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xF9      -- F9: SBC abs,Y
@@ -553,7 +555,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xFB      -- FB: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xFC      -- FC: NOP
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xFD      -- FD: SBC abs,X
-    MEM     0,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xFE      -- FE: INC abs,X
+    MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xFE      -- FE: INC abs,X
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xFF      -- FF: NOP
 
 --------------------------------------------------------------------------------

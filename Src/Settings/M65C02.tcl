@@ -212,6 +212,7 @@ proc add_source_files {} {
 
    xfile add "../../../MAM/MAM6502/M65C02_Tst2.a65"
    xfile add "M65C02.ucf"
+   xfile add "M65C02.v"
    xfile add "M65C02_ALU.v"
    xfile add "M65C02_AddrGen.v"
    xfile add "M65C02_BCD.v"
@@ -234,7 +235,7 @@ proc add_source_files {} {
    xfile add "tb_M65C02_RAM.v"
 
    # Set the Top Module as well...
-   project set top "M65C02_Core"
+   project set top "M65C02_Base"
 
    puts "$myScript: project sources reloaded."
 
@@ -308,7 +309,7 @@ proc set_process_props {} {
 
    project set "Compiled Library Directory" "\$XILINX/<language>/<simulator>"
    project set "Use SmartGuide" "false"
-   project set "SmartGuide Filename" "M65C02_Core_guide.ncd"
+   project set "SmartGuide Filename" "M65C02_Base_guide.ncd"
    project set "Multiplier Style" "Auto" -process "Synthesize - XST"
    project set "Configuration Rate" "25" -process "Generate Programming File"
    project set "Map to Input Functions" "4" -process "Map"
@@ -329,7 +330,7 @@ proc set_process_props {} {
    project set "XOR Collapsing" "true" -process "Synthesize - XST"
    project set "Other Bitgen Command Line Options" "" -process "Generate Programming File"
    project set "Show All Models" "false" -process "Generate IBIS Model"
-   project set "Target UCF File Name" "" -process "Back-annotate Pin Locations"
+   project set "Target UCF File Name" "M65C02.ucf" -process "Back-annotate Pin Locations"
    project set "Ignore User Timing Constraints" "false" -process "Map"
    project set "Use RLOC Constraints" "true" -process "Map"
    project set "Other Map Command Line Options" "" -process "Map"
@@ -394,7 +395,7 @@ proc set_process_props {} {
    project set "Register Balancing" "Yes" -process "Synthesize - XST"
    project set "Register Duplication" "true" -process "Synthesize - XST"
    project set "Asynchronous To Synchronous" "false" -process "Synthesize - XST"
-   project set "Automatic BRAM Packing" "false" -process "Synthesize - XST"
+   project set "Automatic BRAM Packing" "true" -process "Synthesize - XST"
    project set "BRAM Utilization Ratio" "100" -process "Synthesize - XST"
    project set "Bus Delimiter" "<>" -process "Synthesize - XST"
    project set "Case" "Maintain" -process "Synthesize - XST"

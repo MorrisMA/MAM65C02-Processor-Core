@@ -404,9 +404,6 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 
 wire    Ack;                            // External Ack gated by Wait
 
-wire    [1:0] uLen;                     // Microcycle Length Select
-wire    Last;                           // Last cycle of microcycle
-
 wire    BRV1;                           // MPC BRV1 Instruction Decode
 wire    BRV2;                           // MPC BRV2 Instruction Decode
 wire    BRV3;                           // MPC BRV3 Instruction Decode
@@ -464,8 +461,6 @@ wire    Valid;                      // M65C02 ALU Output Valid Signal
 wire    [7:0] StkPtr;               // M65C02 ALU Stack Pointer Logic Output
 wire    CC;                         // ALU Condition Code Output
 
-//wire    [15:0] AL, AR, NA;          // Address Generator Signals
-//wire    [15:0] MAR;                 // Memory Address Register
 wire    [15:0] dPC;                 // Pipeline Compensation Register
 
 wire    CE_IR, CE_OP1, CE_OP2;      // Clock Enables: IR, OP1, and OP2
@@ -536,12 +531,6 @@ end
 //  Assign Test Input Signals
 
 assign T = {3'b00, Valid};
-
-//  Determine Next Microcycle Length
-
-//assign uLen[1] = |AO[15:14];                        // Ext. memory
-assign uLen[1] = 1'b0;
-assign uLen[0] = D & ((Op == pADC) | (Op == pSBC)) & BMW; // BCD ADC/SBC op
 
 //  Instantiate Microprogram Controller/Sequencer - modified F9408A MPC
 

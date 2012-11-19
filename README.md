@@ -21,7 +21,7 @@ codes of the WDC 65C02 processor, and not the extended instructions of the
 current WDC W65C02S synthesizable core. (In addition to the original 65C02 
 instructions, the WDC W65C02S also implements the BBSx, BBRx, SMBx, and RMBx 
 instructions introduced by Rockwell in the R65C02, and additional instructions 
-introduced by WDC in its 65C802/65C816 microprocessors.)
+introduced by WDC (WAI/STP) in its 65C802/65C816 microprocessors.)
 
 The core handles an interrupt signal, which external logic asserts after it 
 processes any interrupts that it services. That is, the core accepts and 
@@ -81,14 +81,14 @@ The implementation of the core provided consists of five Verilog source files
 and several memory initialization files:
 
     M65C02_Core.v           - Top level module
-        M65C02_MPCv3.v      - M65C02 Microprogram Controller with microcyle length controller
+        M65C02_MPCv3.v      - M65C02 MPC with microcycle length controller
         M65C02_AddrGen.v    - M65C02 Address Generator module
         M65C02_ALU.v        - M65C02 ALU module
             M65C02_BIN.v    - M65C02 Binary Mode Adder module
             M65C02_BCD.v    - M65C02 Decimal Mode Adder module
     
     M65C02_Decoder_ROM.coe  - M65C02 core microprogram ALU control fields
-    M65C02_uPgm_V3a.coe     - M65C02 core microprogram (Addressing mode control)
+    M65C02_uPgm_V3a.coe     - M65C02 core microprogram (sequence control)
 
     M65C02.ucf              - User Constraints File: period and pin LOCs
     M65C02.tcl              - Project settings file
@@ -108,19 +108,19 @@ The objective for the core is to synthesize such that the FF-FF speed is 100 MHz
 or higher in a Xilinx XC3S200AN-5FGG256 FPGA using Xilinx ISE 10.1i SP3. In that
 regard, the core provided meets and exceeds that objective. Using the settings
 provided in the M65C02.tcl file, ISE 10.1i tool implements the design and
-reports that the 9.25 ns period (105 MHz) constraint is satisfied.
+reports that the 9.091 ns period (110 MHz) constraint is satisfied.
 
 The ISE 10.1i SP3 implementation results are as follows:
 
-    Number of Slice FFs:            221
-    Number of 4-input LUTs:         733
-    Number of Occupied Slices:      447
-    Total Number of 4-input LUTs:   746 (13 used as route-throughs)
+    Number of Slice FFs:            195
+    Number of 4-input LUTs:         707
+    Number of Occupied Slices:      427
+    Total Number of 4-input LUTs:   720 (13 used as route-throughs)
 
     Number of BUFGMUXs:             1
     Number of RAMB16BWEs            2   (M65C02_Decoder_ROM, M65C02_uPgm_V3a)
 
-    Best Case Achievable:           9.191 ns (0.059 ns Setup, 0.935 ns Hold)
+    Best Case Achievable:           9.003 ns (0.088 ns Setup, 0.996 ns Hold)
 
 Status
 ------
@@ -159,3 +159,13 @@ allow the core to support asynchronous or synchronous external memory. Release
 external logic, and Release 1 targeted a single cycle memory like that 
 provided by the distributed LUT RAMs of the target FPGAs. The approach used in 
 Release 2 should make it much easier to adapt the M65C02 core.
+
+Release 2.1 has modified the core to export signals to an external memory
+controller that would allow the memory controller to drive the core logic with
+the required microcycle length value for the next microcycle. The test bench for
+the core is running in parallel with the original Release 1 (with zero page
+adressing corrected) core (M65C02_Base.v) so that a self-checking configuration
+is achieved between the two cores and the common test program. Release 2.1 also
+includes a modified memory model module, M65C02_RAM,v, that supports all three
+types of memory that is expected to be used with the core: LUT (page 0), BRAM
+(page 1 and internal program/data memory), and external pipelined SynchRAM.

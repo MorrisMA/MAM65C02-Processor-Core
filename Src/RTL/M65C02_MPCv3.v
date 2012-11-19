@@ -173,7 +173,7 @@ module M65C02_MPCv3 #(
     input   [1:0] uLen,                 // Microcycle Length Select
     input   Wait,                       // Microcycle Wait State Request Input
 
-    output  C4, C3, C2, C1,             // One-hot microcycle state outputs
+    output  reg [1:0] MC,               // Microcycle State outputs
 
     input   [3:0] I,                    // Instruction (see description)
     input   [3:0] T,                    // Conditional Test Inputs
@@ -191,22 +191,22 @@ module M65C02_MPCv3 #(
 //  Local Parameters
 //
 
-localparam RTS  =  0;   // Return from Subroutine
-localparam BSR  =  1;   // Branch to Subroutine
-localparam FTCH =  2;   // Fetch Next Instruction
-localparam BMW  =  3;   // Multi-way Branch
-localparam BRV0 =  4;   // Branch Via External Branch Address Source #0
-localparam BRV1 =  5;   // Branch Via External Branch Address Source #1
-localparam BRV2 =  6;   // Branch Via External Branch Address Source #2
-localparam BRV3 =  7;   // Branch Via External Branch Address Source #3
-localparam BTH0 =  8;   // Branch if T[0] is Logic 1, else fetch next instr.
-localparam BTH1 =  9;   // Branch if T[1] is Logic 1, else fetch next instr.
-localparam BTH2 = 10;   // Branch if T[2] is Logic 1, else fetch next instr.
-localparam BTH3 = 11;   // Branch if T[3] is Logic 1, else fetch next instr.
-localparam BTL0 = 12;   // Branch if T[0] is Logic 0, else fetch next instr.
-localparam BTL1 = 13;   // Branch if T[1] is Logic 0, else fetch next instr.
-localparam BTL2 = 14;   // Branch if T[2] is Logic 0, else fetch next instr.
-localparam BTL3 = 15;   // Branch if T[3] is Logic 0, else fetch next instr.
+localparam pRTS  =  0;  // Return from Subroutine
+localparam pBSR  =  1;  // Branch to Subroutine
+localparam pFTCH =  2;  // Fetch Next Instruction
+localparam pBMW  =  3;  // Multi-way Branch
+localparam pBRV0 =  4;  // Branch Via External Branch Address Source #0
+localparam pBRV1 =  5;  // Branch Via External Branch Address Source #1
+localparam pBRV2 =  6;  // Branch Via External Branch Address Source #2
+localparam pBRV3 =  7;  // Branch Via External Branch Address Source #3
+localparam pBTH0 =  8;  // Branch if T[0] is Logic 1, else fetch next instr.
+localparam pBTH1 =  9;  // Branch if T[1] is Logic 1, else fetch next instr.
+localparam pBTH2 = 10;  // Branch if T[2] is Logic 1, else fetch next instr.
+localparam pBTH3 = 11;  // Branch if T[3] is Logic 1, else fetch next instr.
+localparam pBTL0 = 12;  // Branch if T[0] is Logic 0, else fetch next instr.
+localparam pBTL1 = 13;  // Branch if T[1] is Logic 0, else fetch next instr.
+localparam pBTL2 = 14;  // Branch if T[2] is Logic 0, else fetch next instr.
+localparam pBTL3 = 15;  // Branch if T[3] is Logic 0, else fetch next instr.
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -214,7 +214,6 @@ localparam BTL3 = 15;   // Branch if T[3] is Logic 0, else fetch next instr.
 //  Declarations
 //
 
-reg     [1:0] MC;                         // Microcycle Length Controller State
 wire    NxtLenZ;                          // Next microcycle length is Z
 reg     MPC_En;                           // MPC register enable
 
@@ -222,7 +221,8 @@ wire    [(pAddrWidth - 1):0] Next;        // Output Program Counter Incrementer
 reg     [(pAddrWidth - 1):0] PC_In;       // Input to Program Counter
 reg     [(pAddrWidth - 1):0] PC;          // Program Counter
 
-reg     [(pAddrWidth - 1):0] A, B, C, D;  // LIFO Stack Registers
+//reg     [(pAddrWidth - 1):0] A, B, C, D;  // LIFO Stack Registers
+reg     [(pAddrWidth - 1):0] A;           // LIFO Stack Registers
 
 reg     dRst;                             // Reset stretcher
 wire    MPC_Rst;                          // Internal MPC Reset signal
@@ -251,29 +251,24 @@ assign MPC_Rst = (Rst | dRst);
 //  Three microcycles are implemented: 1, 2, or 4 clock in length. If word 0 of
 //  the microprogram, or external logic, sets a different length during reset,
 //  the microcycle length controller will exit reset in either state 0 or
-//  state 2. If it exits reset in state 2, a single clock microcycle will be
-//  performed after reset. If it exits reset in state 0, either a 2 cycle or
+//  state 2. If it exits reset in state 0, a single clock microcycle will be
+//  performed after reset. If it exits reset in state 2, either a 2 cycle or
 //  a 4 cycle microcycle will be performed after reset. The microcycle length is
-//  sampled in state 2, (C1 == 1). This allows either the microprogram or exter-
-//  nal logic to control the length of each microcycle that the MPCv3 performs.
+//  sampled in state 0. This allows either the microprogram or external logic to
+//  control the length of each microcycle that the MPCv3 performs.
 
 always @(posedge Clk)
 begin
     if(MPC_Rst)
-        MC <= #1 ((|uLen) ? 0 : 2);
+        MC <= #1 ((|uLen) ? 2 : 0);
     else
         case(MC)
-            0 : MC <= #1 ((uLen[1]) ? 1 : 2);   // First cycle of microcycle
-            1 : MC <= #1 ((Wait)    ? 1 : 3);   // 2nd of 4 cycle microcycle
-            3 : MC <= #1 ((Wait)    ? 3 : 2);   // 3rd of 4 cycle microcycle
-            2 : MC <= #1 ((|uLen)   ? 0 : 2);   // Last cycle of microcycle
+            2 : MC <= #1 ((uLen[1]) ? 3 : 0);   // First cycle of microcycle
+            3 : MC <= #1 ((Wait)    ? 3 : 1);   // 2nd of 4 cycle microcycle
+            1 : MC <= #1 ((Wait)    ? 1 : 0);   // 3rd of 4 cycle microcycle
+            0 : MC <= #1 ((|uLen)   ? 2 : 0);   // Last cycle of microcycle
         endcase
 end
-
-assign C4 = ~|MC;           // First cycle of microcycle (1 cycle in width)
-assign C3 =  |MC;           // Strobe 1
-assign C2 =   MC[1];        // Strobe 2
-assign C1 =  (MC == 2);     // Last cycle of microcycle (initial state)
 
 //  Assign next microcycle length
 
@@ -287,24 +282,37 @@ begin
         MPC_En <= #1 1;
     else
         case(MC)
-            2'b00 : MPC_En <= #1 ((uLen[1]) ? 0 : 1);
-            2'b01 : MPC_En <= #1 0;
-            2'b11 : MPC_En <= #1 ~Wait;
-            2'b10 : MPC_En <= #1 NxtLenZ;
+            2 : MPC_En <= #1 ((uLen[1]) ? 0 : 1);
+            3 : MPC_En <= #1 0;
+            1 : MPC_En <= #1 ~Wait;
+            0 : MPC_En <= #1 NxtLenZ;
         endcase
 end
 
-//  Implement 4-Level LIFO Stack
+////  Implement 4-Level LIFO Stack
+//
+//always @(posedge Clk)
+//begin
+//    if(MPC_Rst)
+//        {A, B, C, D} <= #1 0;
+//    else if(MPC_En)
+//        if(I == BSR)
+//            {A, B, C, D} <= #1 {Next, A, B, C};
+//        else if(I == RTS)
+//            {A, B, C, D} <= #1 {B, C, D, {pAddrWidth{1'b0}}};
+//end
+
+//  Implement 1-Level LIFO Stack
 
 always @(posedge Clk)
 begin
     if(MPC_Rst)
-        {A, B, C, D} <= #1 0;
+        A <= #1 0;
     else if(MPC_En)
-        if(I == BSR)
-            {A, B, C, D} <= #1 {Next, A, B, C};
-        else if(I == RTS)
-            {A, B, C, D} <= #1 {B, C, D, {pAddrWidth{1'b0}}};
+        if(I == pBSR)
+            A <= #1 Next;
+        else if(I == pRTS)
+            A <= #1 {pAddrWidth{1'b0}};
 end
 
 //  Program Counter Incrementer
@@ -313,32 +321,32 @@ assign Next = PC + 1;
 
 //  Generate Unconditional Branch Address Select
 
-assign Via = {((I == BRV2) | (I == BRV3)), ((I == BRV3) | (I == BRV1))};       
+assign Via = {((I == pBRV2) | (I == pBRV3)), ((I == pBRV3) | (I == pBRV1))};       
 
 //  Generate Program Counter Input Signal
 
 always @(*)
 begin
     case({MPC_Rst, I})
-        RTS     : PC_In <=  A;
-        BSR     : PC_In <=  BA;
-        FTCH    : PC_In <=  Next;
-        BMW     : PC_In <=  {BA[(pAddrWidth - 1):3], MW};
+        pRTS    : PC_In <=  A;
+        pBSR    : PC_In <=  BA;
+        pFTCH   : PC_In <=  Next;
+        pBMW    : PC_In <=  {BA[(pAddrWidth - 1):3], MW};
         //
-        BRV0    : PC_In <=  BA;
-        BRV1    : PC_In <=  BA;
-        BRV2    : PC_In <=  BA;
-        BRV3    : PC_In <=  BA;
+        pBRV0   : PC_In <=  BA;
+        pBRV1   : PC_In <=  BA;
+        pBRV2   : PC_In <=  BA;
+        pBRV3   : PC_In <=  BA;
         //
-        BTH0    : PC_In <=  (T[0] ? BA   : Next);
-        BTH1    : PC_In <=  (T[1] ? BA   : Next);
-        BTH2    : PC_In <=  (T[2] ? BA   : Next);
-        BTH3    : PC_In <=  (T[3] ? BA   : Next);
+        pBTH0   : PC_In <=  (T[0] ? BA   : Next);
+        pBTH1   : PC_In <=  (T[1] ? BA   : Next);
+        pBTH2   : PC_In <=  (T[2] ? BA   : Next);
+        pBTH3   : PC_In <=  (T[3] ? BA   : Next);
         //
-        BTL0    : PC_In <=  (T[0] ? Next : BA  );
-        BTL1    : PC_In <=  (T[1] ? Next : BA  );
-        BTL2    : PC_In <=  (T[2] ? Next : BA  );
-        BTL3    : PC_In <=  (T[3] ? Next : BA  );
+        pBTL0   : PC_In <=  (T[0] ? Next : BA  );
+        pBTL1   : PC_In <=  (T[1] ? Next : BA  );
+        pBTL2   : PC_In <=  (T[2] ? Next : BA  );
+        pBTL3   : PC_In <=  (T[3] ? Next : BA  );
         default : PC_In <=  pRst_Addrs;
     endcase
 end

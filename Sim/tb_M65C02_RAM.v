@@ -38,15 +38,16 @@
 `timescale 1ns / 1ps
 
 ////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer:
+// Company:         M. A. Morris & Assoc. 
+// Engineer:        Michael A. Morris
 //
-// Create Date:   23:07:42 02/04/2012
-// Design Name:   M65C02_RAM
-// Module Name:   C:/XProjects/ISE10.1i/MAM6502/tb_M65C02_RAM.v
-// Project Name:  MAM6502
-// Target Device:  
-// Tool versions:  
+// Create Date:     23:07:42 02/04/2012
+// Design Name:     M65C02_RAM
+// Module Name:     C:/XProjects/ISE10.1i/MAM6502/tb_M65C02_RAM.v
+// Project Name:    MAM6502
+// Target Device:   Generic functional simulation of various RAM technologies
+// Tool versions:   ISE 10.1i SP3
+//  
 // Description: 
 //
 // Verilog Test Fixture created by ISE for module: M65C02_RAM
@@ -54,7 +55,14 @@
 // Dependencies:
 // 
 // Revision:
-// Revision 0.01 - File Created
+//
+//  1.00    12B04   MAM     File Created
+//
+//  2.00    12K18   MAM     Modified to support new version of the M65C02_RAM
+//                          module which emulates Asynchronous LUT-based RAM,
+//                          Synchronous, flow-through RAM (Block RAM), and
+//                          Synchronous, pipelined RAM (SynchSRAM).
+//
 // Additional Comments:
 // 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,23 +73,28 @@ module tb_M65C02_RAM;
     reg     Clk;
 
 	reg     WE;
-	wire    [9:0] AI;
-	reg     [7:0] DI;
-	wire    [7:0] DO;
+	wire    [10:0] AI;
+	reg     [ 7:0] DI;
+	wire    [ 7:0] DO;
     
     //  Simulation Variables
     
-    reg     [9:0] Cntr;
+    reg     [10:0] Cntr;
     wire    TC_Cntr;
+    reg     Ext, ZP;
 
 	// Instantiate the Unit Under Test (UUT)
     
 M65C02_RAM  #(
-                .pAddrSize(10),
+                .pAddrSize(11),
                 .pDataSize(8),
-                .pFileName("M65C02_Tst.txt")
+                .pFileName("M65C02_Tst2.txt")
             ) RAM (
                 .Clk(Clk),
+                
+                .Ext(Ext),
+                .ZP(ZP),
+                
                 .WE(WE),
                 .AI(Cntr),
                 .DI(DI),
@@ -118,9 +131,19 @@ begin
         Cntr = #1 Cntr + 1;
 end
 
-assign TC_Cntr = (Cntr == 10'h01F);
+assign TC_Cntr = (Cntr == 11'h661);     // Last used location in test program
 
-assign AI = Cntr; 
-      
+assign AI = Cntr;
+
+//  Cycle through the various modes
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        {Ext, ZP} <= #1 1;
+    else if(TC_Cntr)
+        {Ext, ZP} <= #1 ({Ext, ZP} + 1);
+end
+
 endmodule
 

@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0015
+File Revision: 0016
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -198,6 +198,13 @@ endh
 --                          branch to _RO_AbsX instead of _RO_Abs. (Notified of
 --                          error by Windfall @forum.6502.org.)
 --
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+--  Forked from M65C02_uPgm_V3.txt when M65C02_MPCv3 started being used in the
+--  core, and the original MPC was retained for use with M65C02_Base, the origi-
+--  nal source file for the M65C02 processor core.
+--
 --  0015    12K12   MAM     Modified the microcode to remove the Wait control
 --                          signal, and replace it with a ZP control signal. ZP
 --                          is asserted whenever an indexed zp address mode, or 
@@ -208,6 +215,12 @@ endh
 --                          both halves of the 16-bit pointer must be located on
 --                          page zero. In (zp,X), the fetch operation of the 
 --                          high byte of the pointer must wrap on page 0.
+--
+--  0016    12K17   MAM     Corrected entry for $22 from BRV1 to BRV3. removed
+--                          use of {SC, Done} field in preparation for reusing
+--                          the field to control the M65C02_MPCv3 microcycle
+--                          length, uLen[1:0], field from within the micro-
+--                          program.
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -258,11 +271,7 @@ endh
 --  machines, and is one reason why most MPCs have only a limited number of
 --  instructions which support multi-way branching. However, microprogrammed
 --  state machines are not limited by the architectural limitation imposed by
---  standard MPCs. A controller such as the SAM448 allowed 4-way and/or 16-way
---  branching on each state transition. The difficulty in applying such a device
---  is the complexity that the state machine designer must deal with on each
---  state transition, and the wasted resources that result when the FSM doesn't
---  require that capability in each state.
+--  standard MPCs.
 --
 --  The M65C02 supports the reset trap, a non-maskable interrupt (NMI), a mask-
 --  able interrupt, and the break instruction trap. In most cases, the two
@@ -277,11 +286,14 @@ endh
 --  of the next instruction's opcode, or it will branch into the interrupt/traps
 --  handler microroutine. Single cycle instructions will use BRV3 for the same
 --  purpose, but implemented in a different manner. The next state for BMW is
---  either BRV1 or BRV2. BRV1 is used to complete the execution of an instruc-
---  tion and fetch the next instruction's opcode. BRV2 is used to capture the
---  interrupt vector. Both IRQ/NMI and BRK start with a BRV2 instruction. BRV3
---  performs the same function as BRV1, but the next state is either the first
---  state of the next instruction or the interrupt/trap microroutine.
+--  either BRV1 or BRV2. BRV1 is used to complete the execution of the current
+--  instruction and fetch the next instruction's opcode. BRV2 is used to capture
+--  the interrupt vector and complete the execution of the current instruction.
+--  Both the IRQ/NMI trap handler and the BRK handler start with a BRV2 instruc-
+--  tion, which completes the current instruction and captures the PC. The BRV3
+--  MPC operation performs the same function as BRV1, but the next state is
+--  either the first state of the next instruction or the IRQ/NMI trap micro-
+--  routine, which capture's the current instruction PC with BRV2.
 --
 --  The microprogram behavior is based on two assumptions: (1) external memory
 --  is of a type in which the read data available is related to the address pre-
@@ -346,9 +358,9 @@ endh
 --  including the PSW, being written twice during a cycle. To avoid this issue,
 --  a second BRV1, BRV2 2-way jump accessed by a BMW instruction is used for the
 --  RMW instructions. The BRV1 microstate in the RMW jump table does not assert
---  Reg_WE, but does assert Done. This allows a RMW instruction to complete in
---  the same manner as other multicycle instructions, and prevents any of the
---  registers from being written more than once per instruction cycle.
+--  Reg_WE. This allows a RMW instruction to complete in the same manner as
+--  other multicycle instructions, and prevents any of the registers from being
+--  written more than once per instruction cycle.
 --
 --  In implementing the microroutines, no attempt was made to combine the micro-
 --  routines for various addressing modes such as Pre-Indexed and Post-Indexed
@@ -377,91 +389,48 @@ endh
 --
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
---
---  Deleted Comments - 12B11, mam, the implementation no longer follows the
---      basic plan for the use of the F9408A MPC as described below. The BRV1
---      and BMW instructions are used as described below, but the other modifi-
---      cations described below were determined to not be relevant during ini-
---      tial testing. Thus, a new plan was developed for the implementation of
---      both the core and the microprogram. In the new plan, the F9408A MPC was
---      modified (and renamed M65C02_MPC) so that all instructions, under con-
---      trol of the microprogram, would wait for the completion of a memory cy-
---      cle, or would proceed without waiting. In this manner, the simplicity of
---      the F9408A MPC is preserved and operation without wait states can be
---      achieved easily. The deleted comments are preserved below for historical
---      completeness.
---
+--  Forked from M65C02_uPgm_V3
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
---  Therefore, some extraordinary use of the F9408A MPC branching instructions
---  will be required to achieve to goal of reducing the number of clock cycles
---  required for instruction processing, while maintaining a microprogrammed
---  implementation approach. The first modification is to have the core logic
---  recognize when a F9408A branch is active. Fortunately, if the F9408A is not
---  executing a FTCH instruction, it is executing a branch instruction. There is
---  only one BMW instruction, the F9408A provides a code for which BRVx instruc-
---  tions is being executed, and the test input branch instructions can easily
---  be detected by the 1 in the MSB of the instruction code.
+--  No changes were implemented to the structure of the microwords in the basic
+--  microprogram to accomodated the new M65C02_MPCv3 microprogram controller.
+--  Instead, external changes to the M65C02_Core module allowed several of the
+--  original fields to be redefined. In redefining the fields, the widths were
+--  not changed and neither were their location in the microword. The single bit
+--  Wait field, bit 18, was redefined as the ZP field. The single bit SC and
+--  Done fields, bit 17 and 16, respectively, were redefined as the uLen[1:0]
+--  field. In the previous implementation, SC and Done were used as a two bit
+--  field, so replacing them with the uLen field is direct drop-in replacement.
 --
---  The desired operational change to the behaviour of these branch instructions
---  is that when a branch is being executed and a memory cycle is simultaneously
---  in progress, logic in the core will inhibit the control fields to the core's
---  functional units. (As a standard practice, a 0 control field is a NOP.) In
---  this manner, when the external memory transfer acknowledge signal is pro-
---  vided, then the desired operation is gated into the functional unit. This
---  allows the simultaneous operation of the core logic and the external memory
---  interface. Presently, only two of the test inputs of the F9408A MPC are used
---  in this application: T0 - connects to Ack, and T1 - connects to ALU Ready.
---  In the case of a BTL0 loop waiting for the memory to deliver the instruction
---  or the operands, while the Ack is not asserted the F9408A will loop as ex-
---  pected, but the microword control fields for the functional units will be
---  inhibited, i.e. forced to logic 0, so that on the clock cycle that Ack is
---  returned, the functional units will receive the control field values encoded
---  into the microword. It is generally expected that the BTL0 loop is a loop to
---  itself. Furthermore, since T0 is only connected to a single signal, the in-
---  hibit logic discussed above can be activated strictly based on the instruc-
---  tion. The T1 pin is connected to a test signal that will not be tested while
---  a memory cycle is pending, so no combination of the Ack and ALU Rdy signals
---  is required. It is expected that the designer will not initiate a memory
---  operation while waiting for a multi-cycel ALU operation to complete.
+--  Version three of the MPC uses dynamic microcycle length control to stretch
+--  the microcycle of the M65C02 core. Microcycle length extension is required
+--  when a BCD mode ADC/SBC is performed. Microcycle length extension may also
+--  be required to access various types of memory.
 --
---  Additional modifications are required for the BRVx instructions, which will
---  be used for several different internal functions. The BRV0 instruction will
---  be used for conditional direct branching, the BRV1 instruction will be used
---  for conditional branching based on the output of the IR decoder ROM. The
---  BRV2 instruction will be used for branching to trap and interrupt handlers.
+--  The new MemTyp[1:0] field is expected to be used to let external logic know
+--  the type of memory cycle that is being performed: program memory fetch, zero
+--  page access, stack page access, or data memory access. The intent is for the 
+--  microprogram to let a memory controller external to the core know what the
+--  next memory cycle will so that the memory controller can select between LUT
+--  RAM (zero page), block RAM (stack page and internal program/data memory), or
+--  external memory. Alternatively, this field can be reconfigured to directly
+--  control the length of the next microcycle.
 --
---  When a BRV0 instruction is used, the Ack signal will be used as a control to
---  multiplex the proper address onto the BA bus of the F9408A MPC. If a memory
---  access is being performed when a BRV0 instruction is used, then Ack will
---  gate the present MA address onto the BA bus until Ack is asserted, and then
---  the BA field in the microword will be gated onto the F9408A BA bus. This
---  will keep the MPC in the same state until the memory responds with Ack. If
---  Ack is not asserted and a memory cycle is being performed, then the func-
---  tional unit control fields are inhibited.
---
---  When a BRV1 instruction is used, a BA multiplexer is required but the inputs
---  are the addressing mode index from the IR decoder, and the microword address
---  bus, MA. In all other respects, the BRV1 instruction performs in the same
---  manner as described above for BRV0.
---
---  The BRV2 instruction is used a bit differently. The Via[1:0] outputs of The
---  F9408A are decoded and when found to be a 2'b10, the multi-way pins MW[2:0]
---  and the IR BRK instruction signal are used to load {OP2, OP1} with the vec-
---  address for Reset, NMI, and IRQ. In this way, the core can branch directly
---  the the trap routine in the lower memory area. The assumption is that these
---  vectors are located in ROM, (actually, the vectors are direct inputs to the
---  MAM6502 processor core.) and the core will branch to a location is lower
---  memory where a four byte area is allocated for the JMP abs instruction to
---  the interrupt/trap handler.
---
---  All of these modifications to the behavior of the basic F9408A MPC are pro-
---  vided by external logic. The following microprogram reflects the modifica-
---  tions described above. The basic organization of the microprogram is:
---
---      (1) jump table indexed by the address mode index of the IR decoder;
---      (2) BMW trap/interrupt/instruction multi-way branch table (mod 8)
---      (3) microroutines to complete any multi-byte/multi-cycle instructions;
+--  In general, it is expected that the MemTyp[1:0] field will directly connect
+--  to a memory controller external to the MPC. That memory controller will set
+--  the uLen[1:0] input of the core to control the microcycle controller of the
+--  MPC. The current architecture of the address generator in the core makes it
+--  difficult to use AO to determine whether the memory is internal or external.
+--  However, the microprogram does "know" what memory type is being addressed
+--  next. Thus, the microprogram can inform an external memory controller 
+--  whether page 0, page 1, or program/data memory is to be accessed next. Since
+--  this data is only available to the microprogram, the MemTyp field can be
+--  used by an memory controller outside of the core to implement address detec-
+--  tion in a later state of the memory access cycle to dynamically change from
+--  1 cycle distributed RAM (page 0), to 2 cycle block RAM memory with 0 wait
+--  states (page 1 and internal program/data memory), or 4 cycle memory with
+--  external wait state insertion (external program/data memory).
 --
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -494,7 +463,7 @@ BTL3        .asm    15      -- Branch if T3 is low
 Inst        .def    4       -- Instruction
 BA          .def    9       -- Branch Address
 ZP          .def    1       -- Force mod 256 Address Calculation
-En          .def    2       -- Enable ALU, and Sample Interrupts
+MemTyp      .def    2       -- Memory Access Type Control Field
 NA_Cntl     .def    4       -- Next Address Control Field
 PC_Cntl     .def    2       -- Program Counter Control Field
 IO_Cntl     .def    2       -- I/O Cycle Control Field
@@ -623,8 +592,8 @@ _Int:
 --------------------------------------------------------------------------------
 
 _Brk:
-    FTCH    $,0,0, Stk,, WR, PCL, Psh               -- Push PCL
-    FTCH    $,0,0, Stk, Jmp, WR, PSW, Psh,, ISR     -- Push P; Clr D, Set I
+    FTCH    $,0,1, Stk,, WR, PCL, Psh               -- Push PCL
+    FTCH    $,0,1, Stk, Jmp, WR, PSW, Psh,, ISR     -- Push P; Clr D, Set I
     BRV1    $,0,1,, Pls, IF, IR                     -- Instruction Fetch
 
 --------------------------------------------------------------------------------
@@ -632,17 +601,17 @@ _Brk:
 --------------------------------------------------------------------------------
 
 _JSR:
-    FTCH    $,0,0,,, IF, OP2                        -- Load Indirect Dst Ptr Lo
-    FTCH    $,0,0, Stk,, WR, PCH, Psh               -- Push PC Hi
-    BRV0    _Nxt,0,0, Stk, Jmp, WR, PCL, Psh        -- Push PC Lo
+    FTCH    $,0,1,,, IF, OP2                        -- Load Indirect Dst Ptr Lo
+    FTCH    $,0,1, Stk,, WR, PCH, Psh               -- Push PC Hi
+    BRV0    _Nxt,0,1, Stk, Jmp, WR, PCL, Psh        -- Push PC Lo
 
 --------------------------------------------------------------------------------
 --  Return from Interrupt - RTI                     (Not interruptable)
 --------------------------------------------------------------------------------
 
 _RTI:
-    FTCH    $,0,0, Stk,, RD, OP1, Pop, WE_P         -- Pop PCL
-    FTCH    $,0,0, Stk, Jmp, RD, OP2, Pop           -- Pop PCH
+    FTCH    $,0,1, Stk,, RD, OP1, Pop, WE_P         -- Pop PCL
+    FTCH    $,0,1, Stk, Jmp, RD, OP2, Pop           -- Pop PCH
 --
     BRV1    $,0,1,, Pls, IF, IR                     -- Next, no Reg_WE, P okay
 
@@ -651,176 +620,176 @@ _RTI:
 --------------------------------------------------------------------------------
 
 _RTS:
-    BRV0    _Nxt,0,0, Stk, Jmp, RD, OP2, Pop        -- Pop PCH
+    BRV0    _Nxt,0,1, Stk, Jmp, RD, OP2, Pop        -- Pop PCH
 
 --------------------------------------------------------------------------------
 --  Jump Absolute - JMP  Abs                        (Not interruptable)
 --------------------------------------------------------------------------------
 
 _Jmp:
-    BRV0    _Nxt,0,0,, Jmp, IF, OP2
+    BRV0    _Nxt,0,1,, Jmp, IF, OP2
 
 --------------------------------------------------------------------------------
 --  Jump Indirect - JMP (Abs)                       (Not interruptable)
 --------------------------------------------------------------------------------
 
 _JmpI:
-    FTCH    $,0,0,, Pls, IF, OP2                    -- Load Indirect Dst Ptr Lo
-    FTCH    $,0,0, LDA,, RD, OP1                    -- Read Indirect Dst Ptr Hi
-    BRV0    _Nxt,0,0, Nxt, Jmp, RD, OP2             -- Goto Next
+    FTCH    $,0,1,, Pls, IF, OP2                    -- Load Indirect Dst Ptr Lo
+    FTCH    $,0,1, LDA,, RD, OP1                    -- Read Indirect Dst Ptr Hi
+    BRV0    _Nxt,0,1, Nxt, Jmp, RD, OP2             -- Goto Next
 
 --------------------------------------------------------------------------------
 --  Jump Pre-Indexed Indirect - JMP (Abs, X)       (Not interruptable)
 --------------------------------------------------------------------------------
 
 _JmpXI:
-    FTCH    $,0,0,, Pls, IF, OP2                    -- Load Indirect Dst Ptr Lo
-    FTCH    $,0,0, LDAX,, RD, OP1                   -- Read Indirect Dst Ptr Hi
-    BRV0    _Nxt,0,0, Nxt, Jmp, RD, OP2             -- Goto Next
+    FTCH    $,0,1,, Pls, IF, OP2                    -- Load Indirect Dst Ptr Lo
+    FTCH    $,0,1, LDAX,, RD, OP1                   -- Read Indirect Dst Ptr Hi
+    BRV0    _Nxt,0,1, Nxt, Jmp, RD, OP2             -- Goto Next
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Data Page Direct - xxx DP
 --------------------------------------------------------------------------------
 
 _RO_DP:
-    BMW     _Nxt,1,0, DPN,, RD, OP1                     -- Read DP Mem
+    BMW     _Nxt,1,1, DPN,, RD, OP1                     -- Read DP Mem
 
 -----------------------------------------------------------------------------
 --  Memory Read-Only Pre-Indexed Data Page Direct - xxx DP, X
 --------------------------------------------------------------------------------
 
 _RO_DPX:
-    BMW     _Nxt,1,0, DPX,, RD, OP1                     -- Read DP Mem
+    BMW     _Nxt,1,1, DPX,, RD, OP1                     -- Read DP Mem
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Post-Indexed Data Page Direct - xxx DP, Y
 --------------------------------------------------------------------------------
 
 _RO_DPY:
-    BMW     _Nxt,1,0, DPY,, RD, OP1                     -- Read DP Mem
+    BMW     _Nxt,1,1, DPY,, RD, OP1                     -- Read DP Mem
 
 ------------------------------------------------------------------------------
 --  Memory Read-Only Data Page Indirect - xxx (DP)
 --------------------------------------------------------------------------------
 
 _RO_DPI:
-    FTCH    $,1,0, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
-    FTCH    $,1,0, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
-    BMW     _Nxt,0,0, LDA,, RD, OP1                     -- Read Operand
+    FTCH    $,1,1, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
+    FTCH    $,1,1, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
+    BMW     _Nxt,0,1, LDA,, RD, OP1                     -- Read Operand
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Pre-Indexed Data Page Indirect - xxx (DP, X)
 --------------------------------------------------------------------------------
 
 _RO_DPXI:
-    FTCH    $,1,0, DPX,, RD, OP1                    -- Read DP Mem Ptr Lo (DP,X)
-    FTCH    $,1,0, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
-    BMW     _Nxt,0,0, LDA,, RD, OP1                     -- Read Operand
+    FTCH    $,1,1, DPX,, RD, OP1                    -- Read DP Mem Ptr Lo (DP,X)
+    FTCH    $,1,1, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
+    BMW     _Nxt,0,1, LDA,, RD, OP1                     -- Read Operand
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Post-Indexed Data Page Indirect - xxx (DP), Y
 --------------------------------------------------------------------------------
 
 _RO_DPIY:
-    FTCH    $,1,0, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
-    FTCH    $,1,0, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
-    BMW     _Nxt,0,0, LDAY,, RD, OP1                    -- Read Operand (DP),Y
+    FTCH    $,1,1, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
+    FTCH    $,1,1, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
+    BMW     _Nxt,0,1, LDAY,, RD, OP1                    -- Read Operand (DP),Y
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Absolute - xxx Abs
 --------------------------------------------------------------------------------
 
 _RO_Abs:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    BMW     _Nxt,0,0, LDA,, RD, OP1                     -- Read Operand
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    BMW     _Nxt,0,1, LDA,, RD, OP1                     -- Read Operand
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Pre-Indexed Absolute - xxx Abs, X
 --------------------------------------------------------------------------------
 
 _RO_AbsX:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    BMW     _Nxt,0,0, LDAX,, RD, OP1                    -- Read Operand Abs,X
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    BMW     _Nxt,0,1, LDAX,, RD, OP1                    -- Read Operand Abs,X
 
 --------------------------------------------------------------------------------
 --  Memory Read-Only Post-Indexed Absolute - xxx Abs, Y
 --------------------------------------------------------------------------------
 
 _RO_AbsY:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    BMW     _Nxt,0,0, LDAY,, RD, OP1                    -- Read Operand Abs,Y
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    BMW     _Nxt,0,1, LDAY,, RD, OP1                    -- Read Operand Abs,Y
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Data Page Direct - xxx DP
 --------------------------------------------------------------------------------
 
 _WO_DP:
-    BMW     _Nxt,1,0, DPN,, WR                          -- Write to DP
+    BMW     _Nxt,1,1, DPN,, WR                          -- Write to DP
 
 -----------------------------------------------------------------------------
 --  Memory Write-Only Pre-Indexed Data Page Direct - xxx DP, X
 --------------------------------------------------------------------------------
 
 _WO_DPX:
-    BMW    _Nxt,1,0, DPX,, WR                          -- Write to DP,X
+    BMW    _Nxt,1,1, DPX,, WR                          -- Write to DP,X
 
 -----------------------------------------------------------------------------
 --  Memory Write-Only Post-Indexed Data Page Direct - xxx DP, Y
 --------------------------------------------------------------------------------
 
 _WO_DPY:
-    BMW     _Nxt,1,0, DPY,, WR                          -- Write to DP,Y
+    BMW     _Nxt,1,1, DPY,, WR                          -- Write to DP,Y
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Data Page Indirect - xxx (DP)
 --------------------------------------------------------------------------------
 
 _WO_DPI:
-    FTCH    $,1,0, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
-    FTCH    $,1,0, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
-    BMW     _Nxt,0,0, LDA,, WR                          -- Write to (DP)
+    FTCH    $,1,1, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
+    FTCH    $,1,1, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
+    BMW     _Nxt,0,1, LDA,, WR                          -- Write to (DP)
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Data Page Indirect - xxx (DP, X)
 --------------------------------------------------------------------------------
 
 _WO_DPXI:
-    FTCH    $,1,0, DPX,, RD, OP1                        -- Read DP Mem Ptr Lo
-    FTCH    $,1,0, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
-    BMW     _Nxt,0,0, LDA,, WR                          -- Write to (DP)
+    FTCH    $,1,1, DPX,, RD, OP1                        -- Read DP Mem Ptr Lo
+    FTCH    $,1,1, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
+    BMW     _Nxt,0,1, LDA,, WR                          -- Write to (DP)
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Post-Indexed Data Page Indirect - xxx (DP), Y
 --------------------------------------------------------------------------------
 
 _WO_DPIY:
-    FTCH    $,1,0, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
-    FTCH    $,1,0, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
-    BMW     _Nxt,0,0, LDAY,, WR                         -- Write to (DP)
+    FTCH    $,1,1, DPN,, RD, OP1                        -- Read DP Mem Ptr Lo
+    FTCH    $,1,1, Nxt,, RD, OP2                        -- Read DP Mem Ptr Hi
+    BMW     _Nxt,0,1, LDAY,, WR                         -- Write to (DP)
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Absolute - xxx Abs
 --------------------------------------------------------------------------------
 
 _WO_Abs:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    BMW     _Nxt,0,0, LDA,, WR                          -- Write to Abs
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    BMW     _Nxt,0,1, LDA,, WR                          -- Write to Abs
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Pre-Indexed Absolute - xxx Abs, X
 --------------------------------------------------------------------------------
 
 _WO_AbsX:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    BMW     _Nxt,0,0, LDAX,, WR                         -- Write to Abs,X
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    BMW     _Nxt,0,1, LDAX,, WR                         -- Write to Abs,X
 
 --------------------------------------------------------------------------------
 --  Memory Write-Only Post-Indexed Absolute - xxx Abs, Y
 --------------------------------------------------------------------------------
 
 _WO_AbsY:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    BMW     _Nxt,0,0, LDAY,, WR                         -- Write to Abs,Y
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    BMW     _Nxt,0,1, LDAY,, WR                         -- Write to Abs,Y
 
 --------------------------------------------------------------------------------
 --  2-way Read-Modify-Write Instruction/Interrupt Jump Table
@@ -835,51 +804,51 @@ _RMW:       .org    96
 --------------------------------------------------------------------------------
 
 _RMW_DP:
-    FTCH    $,1,0, DPN,, RD, OP1                        -- Read from DP
-    BMW     _RMW,1,0, MAR,, WR,,,WE_R                   -- Write to DP
+    FTCH    $,1,1, DPN,, RD, OP1                        -- Read from DP
+    BMW     _RMW,1,1, MAR,, WR,,,WE_R                   -- Write to DP
 
 --------------------------------------------------------------------------------
 --  Memory Read-Modify-Write Pre-Indexed Data Page Direct - xxx DP, X
 --------------------------------------------------------------------------------
 
 _RMW_DPX:
-    FTCH    $,1,0, DPX,, RD, OP1                        -- Read from DP,X
-    BMW     _RMW,1,0, MAR,, WR,,,WE_R                   -- Write to DP,X
+    FTCH    $,1,1, DPX,, RD, OP1                        -- Read from DP,X
+    BMW     _RMW,1,1, MAR,, WR,,,WE_R                   -- Write to DP,X
 
 --------------------------------------------------------------------------------
 --  Memory Read-Modify-Write Post-Indexed Data Page Direct - xxx DP, Y
 --------------------------------------------------------------------------------
 
 _RMW_DPY:
-    FTCH    $,1,0, DPY,, RD, OP1                        -- Read from DP,Y
-    BMW     _RMW,1,0, MAR,, WR,,,WE_R                   -- Write to DP,Y
+    FTCH    $,1,1, DPY,, RD, OP1                        -- Read from DP,Y
+    BMW     _RMW,1,1, MAR,, WR,,,WE_R                   -- Write to DP,Y
 
 --------------------------------------------------------------------------------
 --  Memory Read-Modify-Write Absolute - xxx Abs
 --------------------------------------------------------------------------------
 
 _RMW_Abs:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    FTCH    $,0,0, LDA,, RD, OP1                        -- Read from Abs
-    BMW     _RMW,0,0, MAR,, WR,,,WE_R                   -- Write to Abs
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    FTCH    $,0,1, LDA,, RD, OP1                        -- Read from Abs
+    BMW     _RMW,0,1, MAR,, WR,,,WE_R                   -- Write to Abs
 
 --------------------------------------------------------------------------------
 --  Memory Read-Modify-Write Pre-Indexed Absolute - xxx Abs, X
 --------------------------------------------------------------------------------
 
 _RMW_AbsX:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    FTCH    $,0,0, LDAX,, RD, OP1                       -- Read from Abs,X
-    BMW     _RMW,0,0, MAR,, WR,,,WE_R                   -- Write to Abs,X
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    FTCH    $,0,1, LDAX,, RD, OP1                       -- Read from Abs,X
+    BMW     _RMW,0,1, MAR,, WR,,,WE_R                   -- Write to Abs,X
 
 --------------------------------------------------------------------------------
 --  Memory Read-Modify-Write Post-Indexed Absolute - xxx Abs, Y
 --------------------------------------------------------------------------------
 
 _RMW_AbsY:
-    FTCH    $,0,0,, Pls, IF, OP2                        -- Read Mem Ptr Hi
-    FTCH    $,0,0, LDAY,, RD, OP1                       -- Read from Abs,Y
-    BMW     _RMW,0,0, MAR,, WR,,,WE_R                   -- Write to Abs,Y
+    FTCH    $,0,1,, Pls, IF, OP2                        -- Read Mem Ptr Hi
+    FTCH    $,0,1, LDAY,, RD, OP1                       -- Read from Abs,Y
+    BMW     _RMW,0,1, MAR,, WR,,,WE_R                   -- Write to Abs,Y
 
 --------------------------------------------------------------------------------
 --  End of Microprogram
@@ -920,577 +889,577 @@ _End_uPgm:
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _BRK_imm:
-    BRV2    _Brk,0,0, Stk,, WR, PCH, Psh, WE_P      -- Start Break Handler
+    BRV2    _Brk,0,1, Stk,, WR, PCH, Psh, WE_P      -- Start Break Handler
 _BPL_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _JSR_abs:
-    BRV0    _JSR,0,0,, Pls, IF, OP1                 -- Read Dst Ptr Lo
+    BRV0    _JSR,0,1,, Pls, IF, OP1                 -- Read Dst Ptr Lo
 _BMI_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _RTI_imp:
-    BRV0    _RTI,0,0, Stk,, RD, OP1, Pop            -- Read PSW from Stack
+    BRV0    _RTI,0,1, Stk,, RD, OP1, Pop            -- Read PSW from Stack
 _BVC_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _RTS_imp:
-    BRV0    _RTS,0,0, Stk,, RD, OP1, Pop            -- Read PCL from Stack
+    BRV0    _RTS,0,1, Stk,, RD, OP1, Pop            -- Read PCL from Stack
 _BVS_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _BRA_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _BCC_rel
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _LDY_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read #imm Value
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read #imm Value
 _BCS_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _CPY_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read #imm Value
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read #imm Value
 _BNE_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 _CPX_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read #imm Value
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read #imm Value
 _BEQ_rel:
-    BRV0    _Rel,0,0,, Rel, IF, OP1                 -- Read rel Value
+    BRV0    _Rel,0,1,, Rel, IF, OP1                 -- Read rel Value
 --------------------------------------------------------------------------------
 -- Row 1 : 0x01-0xF1
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ORA_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _ORA_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _AND_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _AND_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _EOR_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _EOR_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _ADC_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _ADC_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _STA_dpXi:
-    BRV0    _WO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _WO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _STA_dpiY:
-    BRV0    _WO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _WO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _LDA_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _LDA_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _CMP_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _CMP_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _SBC_dpXi:
-    BRV0    _RO_DPXI,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPXI,0,1,, Pls, IF, OP1             -- Read DP Ptr
 _SBC_dpiY:
-    BRV0    _RO_DPIY,0,0,, Pls, IF, OP1             -- Read DP Ptr
+    BRV0    _RO_DPIY,0,1,, Pls, IF, OP1             -- Read DP Ptr
 --------------------------------------------------------------------------------
 -- Row 2 : 0x02-0xF2
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _NOP_02:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _ORA_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_22:
-    BRV1    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _AND_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_42:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _EOR_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_62:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _ADC_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_82:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _STA_dpi:
-    BRV0    _WO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _WO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _LDX_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read #imm Value
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read #imm Value
 _LDA_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_C2:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _CMP_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_E2:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _SBC_dpi:
-    BRV0    _RO_DPI,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPI,0,1,, Pls, IF, OP1              -- Read DP
 --------------------------------------------------------------------------------
 -- Row 3 : 0x03-0xF3
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _NOP_03:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_13:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_23:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_33:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_43:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_53:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_63:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_73:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_83:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_93:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_A3:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_B3:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_C3:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_D3:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_E3:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_F3:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 --------------------------------------------------------------------------------
 -- Row 4 : 0x04-0xF4
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _TSB_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _TRB_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _BIT_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _BIT_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _NOP_44:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_54:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _STZ_dp:
-    BRV0    _WO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _WO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _STZ_dpX:
-    BRV0    _WO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _WO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _STY_dp:
-    BRV0    _WO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _WO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _STY_dpX:
-    BRV0    _WO_DPX,0,0,, Pls, IR, OP1              -- Read DP
+    BRV0    _WO_DPX,0,1,, Pls, IR, OP1              -- Read DP
 _LDY_dp:
-    BRV0    _RO_DP,0,0,, Pls, IR, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IR, OP1               -- Read DP
 _LDY_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _CPY_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _NOP_D4:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _CPX_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _NOP_F4:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 --------------------------------------------------------------------------------
 -- Row 5 : 0x05-0xF5
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ORA_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _ORA_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _AND_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _AND_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _EOR_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _EOR_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _ADC_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _ADC_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _STA_dp:
-    BRV0    _WO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _WO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _STA_dpX:
-    BRV0    _WO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _WO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _LDA_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _LDA_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _CMP_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _CMP_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 _SBC_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _SBC_dpX:
-    BRV0    _RO_DPX,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPX,0,1,, Pls, IF, OP1              -- Read DP
 --------------------------------------------------------------------------------
 -- Row 6 : 0x06-0xF6
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ASL_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _ASL_dpX:
-    BRV0    _RMW_DPX,0,0,, Pls, IF, OP1             -- Read DP
+    BRV0    _RMW_DPX,0,1,, Pls, IF, OP1             -- Read DP
 _ROL_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _ROL_dpX:
-    BRV0    _RMW_DPX,0,0,, Pls, IF, OP1             -- Read DP
+    BRV0    _RMW_DPX,0,1,, Pls, IF, OP1             -- Read DP
 _LSR_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _LSR_dpX:
-    BRV0    _RMW_DPX,0,0,, Pls, IF, OP1             -- Read DP
+    BRV0    _RMW_DPX,0,1,, Pls, IF, OP1             -- Read DP
 _ROR_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _ROR_dpX:
-    BRV0    _RMW_DPX,0,0,, Pls, IF, OP1             -- Read DP
+    BRV0    _RMW_DPX,0,1,, Pls, IF, OP1             -- Read DP
 _STX_dp:
-    BRV0    _WO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _WO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _STX_dpY:
-    BRV0    _WO_DPY,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _WO_DPY,0,1,, Pls, IF, OP1              -- Read DP
 _LDX_dp:
-    BRV0    _RO_DP,0,0,, Pls, IF, OP1               -- Read DP
+    BRV0    _RO_DP,0,1,, Pls, IF, OP1               -- Read DP
 _LDX_dpY:
-    BRV0    _RO_DPY,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RO_DPY,0,1,, Pls, IF, OP1              -- Read DP
 _DEC_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _DEC_dpX:
-    BRV0    _RMW_DPX,0,0,, Pls, IF, OP1             -- Read DP
+    BRV0    _RMW_DPX,0,1,, Pls, IF, OP1             -- Read DP
 _INC_dp:
-    BRV0    _RMW_DP,0,0,, Pls, IF, OP1              -- Read DP
+    BRV0    _RMW_DP,0,1,, Pls, IF, OP1              -- Read DP
 _INC_dpX:
-    BRV0    _RMW_DPX,0,0,, Pls, IF, OP1             -- Read DP
+    BRV0    _RMW_DPX,0,1,, Pls, IF, OP1             -- Read DP
 --------------------------------------------------------------------------------
 -- Row 7 : 0x07-0xF7
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _NOP_07:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_17:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_27:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_37:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_47:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_57:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_67:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_77:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_87:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_97:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_A7:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_B7:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_C7:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_D7:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_E7:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_F7:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 --------------------------------------------------------------------------------
 -- Row 8 : 0x08-0xF8
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _PHP:
-    BRV0    _Psh,0,0, Stk,, WR,, Psh                -- Push P
+    BRV0    _Psh,0,1, Stk,, WR,, Psh                -- Push P
 _CLC:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_P              -- Clear Carry Flag
+    BRV3    $,0,1,, Pls, IF, IR,, WE_P              -- Clear Carry Flag
 _PLP:
-    BRV0    _Pop,0,0, Stk,, RD, OP1, Pop            -- Pop P
+    BRV0    _Pop,0,1, Stk,, RD, OP1, Pop            -- Pop P
 _SEC:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_P              -- Set Carry Flag
+    BRV3    $,0,1,, Pls, IF, IR,, WE_P              -- Set Carry Flag
 _PHA:
-    BRV0    _Psh,0,0, Stk,, WR,, Psh                -- Push A
+    BRV0    _Psh,0,1, Stk,, WR,, Psh                -- Push A
 _CLI:
-    BRV1    $,0,3,, Pls, IF, IR,, WE_P              -- Clear Interrupt Mask Flg
+    BRV1    $,0,1,, Pls, IF, IR,, WE_P              -- Clear Interrupt Mask Flg
 _PLA:
-    BRV0    _Pop,0,0, Stk,, RD, OP1, Pop            -- Pop A
+    BRV0    _Pop,0,1, Stk,, RD, OP1, Pop            -- Pop A
 _SEI:
-    BRV1    $,0,3,, Pls, IF, IR,, WE_P              -- Set Interrupt Mask Flag
+    BRV1    $,0,1,, Pls, IF, IR,, WE_P              -- Set Interrupt Mask Flag
 _DEY:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_Y              -- Decrement Y
+    BRV3    $,0,1,, Pls, IF, IR,, WE_Y              -- Decrement Y
 _TYA:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Transfer Y to A
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Transfer Y to A
 _TAY:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_Y              -- Transfer A to Y
+    BRV3    $,0,1,, Pls, IF, IR,, WE_Y              -- Transfer A to Y
 _CLV:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_P              -- Clear oVerflow Flag
+    BRV3    $,0,1,, Pls, IF, IR,, WE_P              -- Clear oVerflow Flag
 _INY:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_Y              -- Increment Y
+    BRV3    $,0,1,, Pls, IF, IR,, WE_Y              -- Increment Y
 _CLD:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_P              -- Clear Decimal Mode Flag
+    BRV3    $,0,1,, Pls, IF, IR,, WE_P              -- Clear Decimal Mode Flag
 _INX:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_X              -- Increment X
+    BRV3    $,0,1,, Pls, IF, IR,, WE_X              -- Increment X
 _SED:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_P              -- Set Decimal Mode Flag
+    BRV3    $,0,1,, Pls, IF, IR,, WE_P              -- Set Decimal Mode Flag
 --------------------------------------------------------------------------------
 -- Row 9 : 0x09-0xF9
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ORA_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _ORA_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _AND_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _AND_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _EOR_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _EOR_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _ADC_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _ADC_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _BIT_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _STA_absY:
-    BRV0    _WO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _WO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _LDA_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _LDA_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _CMP_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _CMP_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 _SBC_imm:
-    BMW     _Imm,0,0,, Pls, IF, OP1                 -- Read Immediate Operand
+    BMW     _Imm,0,1,, Pls, IF, OP1                 -- Read Immediate Operand
 _SBC_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Mem Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Mem Ptr Lo
 --------------------------------------------------------------------------------
 -- Row A : 0x0A-0xFA
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ASL_A:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Arithmetic Shift A Left
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Arithmetic Shift A Left
 _INC_A:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Increment A
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Increment A
 _ROL_A:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Rotate A Left
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Rotate A Left
 _DEC_A:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Decrement A
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Decrement A
 _LSR_A:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Logical Shift A Right
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Logical Shift A Right
 _PHY:
-    BRV0    _Psh,0,0, Stk,, WR,, Psh                -- Push Y
+    BRV0    _Psh,0,1, Stk,, WR,, Psh                -- Push Y
 _ROR_A:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Rotate A Right
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Rotate A Right
 _PLY:
-    BRV0    _Pop,0,0, Stk,, RD, OP1, Pop            -- Pop Y
+    BRV0    _Pop,0,1, Stk,, RD, OP1, Pop            -- Pop Y
 _TXA:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_A              -- Transfer X to A
+    BRV3    $,0,1,, Pls, IF, IR,, WE_A              -- Transfer X to A
 _TXS:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_S              -- Transfer X to S
+    BRV3    $,0,1,, Pls, IF, IR,, WE_S              -- Transfer X to S
 _TAX:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_X              -- Transfer A to X
+    BRV3    $,0,1,, Pls, IF, IR,, WE_X              -- Transfer A to X
 _TSX:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_X              -- Transfer S to X
+    BRV3    $,0,1,, Pls, IF, IR,, WE_X              -- Transfer S to X
 _DEX:
-    BRV3    $,0,3,, Pls, IF, IR,, WE_X              -- Decrement X
+    BRV3    $,0,1,, Pls, IF, IR,, WE_X              -- Decrement X
 _PHX:
-    BRV0    _Psh,0,0, Stk,, WR,, Psh                -- Push X
+    BRV0    _Psh,0,1, Stk,, WR,, Psh                -- Push X
 _NOP:   -- the real NOP
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip True NOP Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip True NOP Instruction
 _PLX:
-    BRV0    _Pop,0,0, Stk,, RD, OP1, Pop            -- Pop X
+    BRV0    _Pop,0,1, Stk,, RD, OP1, Pop            -- Pop X
 --------------------------------------------------------------------------------
 -- Row B : 0x0B-0xFB
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _NOP_0B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_1B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_2B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_3B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_4B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_5B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_6B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_7B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_8B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_9B:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_AB:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_BB:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_CB:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_DB:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_EB:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_FB:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 --------------------------------------------------------------------------------
 -- Row C : 0x0C-0xFC
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _TSB_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _TRB_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _BIT_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _BIT_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _JMP_abs:
-    BRV0    _Jmp,0,0,, Pls, IF, OP1                 -- Read Dst Ptr Lo
+    BRV0    _Jmp,0,1,, Pls, IF, OP1                 -- Read Dst Ptr Lo
 _NOP_5C:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _JMP_absi:
-    BRV0    _JmpI,0,0,, Pls, IF, OP1                -- Read Dst Ptr Lo
+    BRV0    _JmpI,0,1,, Pls, IF, OP1                -- Read Dst Ptr Lo
 _JMP_absXi:
-    BRV0    _JmpXI,0,0,, Pls, IF, OP1               -- Read Dst Ptr Lo
+    BRV0    _JmpXI,0,1,, Pls, IF, OP1               -- Read Dst Ptr Lo
 _STY_abs:
-    BRV0    _WO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _WO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _STZ_abs:
-    BRV0    _WO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _WO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _LDY_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _LDY_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _CPY_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _NOP_DC:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _CPX_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _NOP_FC:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 --------------------------------------------------------------------------------
 -- Row D : 0x0D-0xFD
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ORA_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _ORA_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _AND_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _AND_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _EOR_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _EOR_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _ADC_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _ADC_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _STA_abs:
-    BRV0    _WO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _WO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _STA_absX:
-    BRV0    _WO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _WO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _LDA_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _LDA_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _CMP_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _CMP_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _SBC_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _SBC_absX:
-    BRV0    _RO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 --------------------------------------------------------------------------------
 -- Row E : 0x0E-0xFE
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _ASL_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _ASL_absX:
-    BRV0    _RMW_AbsX,0,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
+    BRV0    _RMW_AbsX,0,1,, Pls, IF, OP1            -- Read Dst Ptr Lo
 _ROL_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _ROL_absX:
-    BRV0    _RMW_AbsX,0,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
+    BRV0    _RMW_AbsX,0,1,, Pls, IF, OP1            -- Read Dst Ptr Lo
 _LSR_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _LSR_absX:
-    BRV0    _RMW_AbsX,0,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
+    BRV0    _RMW_AbsX,0,1,, Pls, IF, OP1            -- Read Dst Ptr Lo
 _ROR_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _ROR_absX:
-    BRV0    _RMW_AbsX,0,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
+    BRV0    _RMW_AbsX,0,1,, Pls, IF, OP1            -- Read Dst Ptr Lo
 _STX_abs:
-    BRV0    _WO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _WO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _STZ_absX:
-    BRV0    _WO_AbsX,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _WO_AbsX,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _LDX_abs:
-    BRV0    _RO_Abs,0,0,, Pls, IF, OP1              -- Read Dst Ptr Lo
+    BRV0    _RO_Abs,0,1,, Pls, IF, OP1              -- Read Dst Ptr Lo
 _LDX_absY:
-    BRV0    _RO_AbsY,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RO_AbsY,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _DEC_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _DEC_absX:
-    BRV0    _RMW_AbsX,0,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
+    BRV0    _RMW_AbsX,0,1,, Pls, IF, OP1            -- Read Dst Ptr Lo
 _INC_abs:
-    BRV0    _RMW_Abs,0,0,, Pls, IF, OP1             -- Read Dst Ptr Lo
+    BRV0    _RMW_Abs,0,1,, Pls, IF, OP1             -- Read Dst Ptr Lo
 _INC_absX:
-    BRV0    _RMW_AbsX,0,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
+    BRV0    _RMW_AbsX,0,1,, Pls, IF, OP1            -- Read Dst Ptr Lo
 --------------------------------------------------------------------------------
 -- Row F : 0x0F-0xFF
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _NOP_0F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_1F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_2F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_3F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_4F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_5F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_6F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_7F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_8F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_9F:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_AF:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_BF:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_CF:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_DF:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_EF:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_FF:
-    BRV3    $,0,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 --------------------------------------------------------------------------------
 --  End of Instruction Decode Table
 --------------------------------------------------------------------------------
