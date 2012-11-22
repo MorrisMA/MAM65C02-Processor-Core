@@ -147,7 +147,7 @@ Design and verification is complete.
 Release Notes
 -------------
 
-##Release 1
+###Release 1
 
 Release 1 of the M65C02 had an issue in that addressing wrapping of zero page 
 addressing was not properly implemented. Unlike the W65C02 and MOS6502, the 
@@ -164,7 +164,7 @@ microcode to control when addresses are computed modulo 256. With this change,
 all outstanding issues with respect to zero page addressing have been 
 corrected.
 
-##Release 2
+###Release 2
 
 Release 2 has reworked the Microprogram Controller (MPC) to include a 
 microcycle length controller directly. With this new MPC, it is expected that 
