@@ -259,6 +259,16 @@
 //                          page 0. Therefore, the increment operation to get
 //                          the second byte must be wrapped to page 0.
 //
+//  3.00    12K20   MAM     Renamed signal Last to MPC_En. MPC_En is asserted
+//                          on the last cycle of a multi-cycle microcycle. Added
+//                          (MPC_En | Rst) as a ROM enable for the microprogram
+//                          ROM to ensure that the microprogram word is constant
+//                          during a multi-cycle microcycle. Rst is included to
+//                          allow the first microword to be fetched during Rst
+//                          in support of the MPC's pipelined operation. (For
+//                          additional clarification refer to comment 1.6 of the
+//                          M65C02_ALU module.)
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -427,7 +437,7 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 
 wire    BCD_Op;                         // BCD Operation - requires extra cycle
 wire    [1:0] MC_Len;                   // Microcycle Length Select
-wire    Last;                           // Last cycle of microcycle
+wire    MPC_En;                         // Microcycle Complete
 
 wire    BRV1;                           // MPC BRV1 Instruction Decode
 wire    BRV2;                           // MPC BRV2 Instruction Decode
@@ -496,15 +506,15 @@ wire    D;                          // BCD mode bit in P
 
 //  Define Microcycle and Instruction Cycle Status Signals
 
-assign Done = (|Via);           // Instruction Complete (1)     - ~BRV0
-assign SC   = (&Via);           // Single Cycle Instruction (1) -  BRV3             
-assign Last = (MC == 0);        // Microcycle Complete Signal
+assign Done   = (|Via);         // Instruction Complete (1)     - ~BRV0
+assign SC     = (&Via);         // Single Cycle Instruction (1) -  BRV3             
+assign MPC_En = (~|MC);         // Microcycle Complete Signal
 
 //  Generate Internal Ready Signal
 
 always @(*)
 begin
-    case({Done, (|Op & |Reg_WE), Valid, Last})
+    case({Done, (|Op & |Reg_WE), Valid, MPC_En})
         4'b0000 : Rdy <= 0;
         4'b0001 : Rdy <= 1;     // Non-ALU external cycle ready
         4'b0010 : Rdy <= 0;
@@ -593,7 +603,8 @@ initial
     
 always @(posedge Clk)
 begin
-    uPL <= #1 uP_ROM[MA];
+    if(MPC_En | Rst)
+        uPL <= #1 uP_ROM[MA];
 end
 
 //  Assign uPL fields

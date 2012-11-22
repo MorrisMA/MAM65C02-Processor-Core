@@ -156,8 +156,10 @@ M65C02_Core #(
             .IntSvc(IntSvc),
 
             .MC(MC), 
-            .MemTyp(MemTyp), 
-            .uLen(2'b0), 
+            .MemTyp(MemTyp),
+//            .uLen(2'b11),     // Len 4 Cycle 
+//            .uLen(2'b1),      // Len 2 Cycle 
+            .uLen(2'b0),      // Len 1 Cycle
             .Wait(1'b0), 
             .Rdy(Rdy),
             
@@ -256,7 +258,11 @@ M65C02_RAM  #(
                 .pFileName("M65C02_Tst2.txt")
             ) RAM (
                 .Clk(Clk),
-                .Ext(1'b0),
+//                .Ext(1'b1),     // 4 cycle memory
+//                .ZP(1'b0),
+//                .Ext(1'b0),     // 2 cycle memory
+//                .ZP(1'b0),
+                .Ext(1'b0),   // 1 cycle memory
                 .ZP(1'b1),
                 .WE((IO_Op == 1)),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),

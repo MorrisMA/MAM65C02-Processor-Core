@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0015
+File Revision: 0016
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -208,6 +208,10 @@ endh
 --                          shared between BRK and interrupt handling. If sepa-
 --                          rate routines are used, then Done could be made to
 --                          assert for only one cycle.
+--
+--  0016    12K20   MAM     Added Wait to microprogram word 0. This allows then
+--                          Ack_In line to be deasserted during reset and before
+--                          the start of microprogram execution.
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -595,7 +599,7 @@ ISR         .equ    1       -- Assert ISR: Clear D, Set I
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 
 _Start: .org    0
-    BRV0    _Nxt,0,0                            -- Initial Fetch after Reset
+    BRV0    _Nxt,1,0                            -- Initial Fetch after Reset
 
 --  this space reserved for future use - boot loader for the microprogram ROMs
 

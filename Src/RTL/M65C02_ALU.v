@@ -361,7 +361,24 @@
 //                          been removed from the source.
 //
 //  1.50    12K12   MAM     Modified the stack pointer logic to eliminate extra
-//                          adder. 
+//                          adder.
+//
+//  1.60    12K20   MAM     During multi-cycle microcycle, the interrupt handler
+//                          was found to be modifying the PSW early. This means
+//                          that the D and I flags were not properly pushed onto
+//                          the stack. The modified versions of the two flags
+//                          were pushed onto the stack instead of the values in
+//                          the PSW at the start of the interrupt handler. Fixed
+//                          by qaulifying the PSW modification with the Rdy sig-
+//                          nal which signifies the end of a microcycle. Worked
+//                          with single cycle microcycles, including BCD ops,
+//                          because Rdy is asserted and/or the BCD op completes
+//                          during the push PCH cycle. With a multi-cycle micro-
+//                          cycle, the modification occurred one cycle after the
+//                          push PSW microcycle, but before the data was written
+//                          to the stack. Hence, qualifying it with Rdy, delays
+//                          the modification until the first cycle of the next
+//                          microcycle; the original intent.
 //
 // Additional Comments:
 //
@@ -767,9 +784,9 @@ always @(posedge Clk)
 begin
     if(Rst)
         PSW <= #1 6'b00_0100;       // I set by default on Rst
-    else if(ISR)
+    else if(ISR & Rdy)
         PSW <= #1 {N, V, 1'b0, 1'b1, Z, C};
-    else if(WE_P)
+    else if(WE_P) 
         case(CCSel)
             pCLC    : PSW <= #1 {     N,   V,   D,   I,        Z,1'b0};
             pSEC    : PSW <= #1 {     N,   V,   D,   I,        Z,1'b1};

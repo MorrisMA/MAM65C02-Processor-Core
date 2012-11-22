@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0016
+File Revision: 0017
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -221,6 +221,11 @@ endh
 --                          the field to control the M65C02_MPCv3 microcycle
 --                          length, uLen[1:0], field from within the micro-
 --                          program.
+--
+--  0017    12K20   MAM     Changed the MemTyp field of the first microword to
+--                          ensure that the first instruction fetch cycle deter-
+--                          mines whether a wait state, multi-cycle microcycle
+--                          is needed.
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -561,7 +566,7 @@ ISR         .equ    1       -- Assert ISR: Clear D, Set I
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 
 _Start: .org    0
-    BRV0    _Nxt,0,0                            -- Initial Fetch after Reset
+    BRV0    _Nxt,0,1                            -- Initial Fetch after Reset
 
 --  this space reserved for future use - boot loader for the microprogram ROMs
 

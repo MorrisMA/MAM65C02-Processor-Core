@@ -29,28 +29,37 @@ The second test program is a more complete program. All instructions, i.e. all
 interrupt logic and the automatic wait state inserted during decimal (BCD) 
 mode addition and subtraction (ADC/SBC) are also tested with the second test 
 program. It is not a comprehensive diagnostics program. Examination of the 
-simulation output was used to test the operation of the M65C02's instructions. 
-However, the second test program does contain some self-checks, and those were 
-used to speed the process of testing each instruction and each addressing 
-mode.
+simulation output was used to test the operation of many of the M65C02's 
+instructions. However, the second test program does contain some self-checks, 
+and those were used to speed the process of testing each instruction and each 
+addressing mode. (The most recent release of the core, Release 2.2, exposed an 
+issue that affected the PSW on entry into the ISR. Proper adjustment of the 
+PSW in the PSW  was not being tested within the simulated ISR. The problem was 
+detected further into the test program when and BCD arithmetic failed. Since 
+this is a critical behavior, the ISR has been modified to include checks that 
+verify that the BCD mode (PSW.D) is not set, and that interrupt mask is set 
+(PSW.I) when the ISR is entered.)
 
 The M65C02 is a microprogrammed implementation. There are two microprogram 
 memories used. The first, M65C02_Decoder_ROM, provides the control of the ALU 
-during the execute phase. The second, M65C02_uPgm_ROM, provides the control of 
-the core. It implements each addressing mode, deals with interrupts and BRK. 
-Both microprogram ROM implement an instruction decoder. When the instruction 
-is present on the input data bus, it is captured into the instruction 
-register, IR, but it is simultaneously applied to the address bus of the two 
-microprogram ROMs.
+during the execute phase. The second, M65C02_uPgm_V3, provides the control of 
+the core. That is, the second microprogram implements each addressing mode, 
+deals with interrupts and BRK, and controls the fetching and execution of all 
+instructions. Both microprogram ROMs include an instruction decoder. When the 
+instruction is present on the input data bus, it is captured into the 
+instruction register, IR, but it is simultaneously applied to the address bus 
+of the two microprogram ROMs.
 
 In the Decoder ROM, the opcode is applied in a normal fashion, so the Decoder 
 ROM is organized linearly. In the uPgm ROM, the opcode is applied to the 
-address bus with the opcode's nibbles swapped. Thus, the uPgm ROM is best 
-thought of a organized by the rows in the opcode matrix of the M65C02.
+address bus with the opcode's nibbles swapped. Thus, the instruction decoder 
+in the uPgm ROM is best thought of as being organized by the rows in the 
+opcode matrix of the M65C02.
 
-There are three memory images files provided in the corresponding 
-subdirectory. One is for the test program, and the other two are for the 
-microprogram ROMs. The microprogram ROMs are implemented using Block RAMs.
+There are three memory image files provided in the corresponding subdirectory. 
+One is for the M65C02 test program, and the other two are for the microprogram 
+ROMs. The microprogram ROMs are implemented using Block RAMs, whose contents 
+are initialized by the contents of the two microprogram ROM image files.
 
 The RTL source files are provided along with a user constraint file (UCF) that 
 was used during development to optimize the implementation times of the core. 

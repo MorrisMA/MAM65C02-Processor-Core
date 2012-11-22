@@ -250,6 +250,18 @@
 //                          address wrapping when the MAR is used to fetch the
 //                          second operand after an initial zero page access.
 //
+//  3.00    12K20   MAM     Added an enable to the microprogram ROM which keeps
+//                          the ROM contents constant during multi-cycle micro-
+//                          cycles. The microprogram ROM enable also includes
+//                          Rst in order to deal with the initial microprogram
+//                          word fetch that occurs during reset for pipelined
+//                          operation of the MPC. Also added a clock enable for
+//                          rDP so that it remains constant during a multi-cycle
+//                          microcycle to ensure that all zero page addressing
+//                          modulo 256 operations are performed correctly. (See
+//                          comment 1.60 in M65C02_ALU for additional clarifi-
+//                          cation of the timing implications.)
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -561,7 +573,8 @@ initial
     
 always @(posedge Clk)
 begin
-    uPL <= #1 uP_ROM[MA];
+    if(Rdy | Rst)
+        uPL <= #1 uP_ROM[MA];
 end
 
 //  Assign uPL fields
@@ -668,7 +681,7 @@ always @(posedge Clk)
 begin
     if(Rst)
         rDP <= #1 0;
-    else
+    else if(Rdy)
         rDP <= #1 DP;
 end
 

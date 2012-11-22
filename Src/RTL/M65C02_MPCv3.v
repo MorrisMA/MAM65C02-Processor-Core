@@ -116,6 +116,30 @@
 //                          Block RAM, which will only work with the pipelined
 //                          mode.
 //
+//  1.10    12K20   MAM     Changed reset for the microcycle length controller
+//                          portion from MPC_Rst to Rst, which releases the
+//                          microcycle length controller one cycle ahead of the
+//                          MPC logic of the module. This is required to ensure
+//                          that MPC_En and the microcycle length controller SM
+//                          are properly conditioned before the start of micro-
+//                          program execution. Removed the multiplexer on MA.
+//                          The multiplexer was used to hold the address of the
+//                          MPC when a delay cycle was required. It was put into
+//                          implementation to correct an issue with BCD instruc-
+//                          tions during testing with single cycle memory. The
+//                          same issue reappeared when multi-cycle microcycles
+//                          were tested. The issue was corrected by removing the
+//                          MA multiplexer, and properly conditioning the PSW,
+//                          interrupt handler update and the microprogram ROMs
+//                          with the Rdy signal. The original fix, adding the MA
+//                          multiplexer, fixed the issue because the PSW ISR
+//                          update logic and microprogram ROMs were not condi-
+//                          tioned with Rdy. The multiplexer added a microcycle
+//                          delay which couldn't be sustained for multi-cycle
+//                          microcycles; the required microprogram address delay
+//                          could only be sustained for one cycle without adding
+//                          the enable, i.e. Rdy, to the microprogram ROM.
+//
 // Additional Comments: 
 //
 //  The Version 3 Microprogram Controller (MPCv3) is based on the Fairchild
@@ -259,7 +283,7 @@ assign MPC_Rst = (Rst | dRst);
 
 always @(posedge Clk)
 begin
-    if(MPC_Rst)
+    if(Rst)
         MC <= #1 ((|uLen) ? 2 : 0);
     else
         case(MC)
@@ -278,8 +302,8 @@ assign NxtLenZ = (uLen == 0);
 
 always @(posedge Clk)
 begin
-    if(MPC_Rst)
-        MPC_En <= #1 1;
+    if(Rst)
+        MPC_En <= #1 ~|uLen;
     else
         case(MC)
             2 : MPC_En <= #1 ((uLen[1]) ? 0 : 1);
@@ -365,7 +389,7 @@ end
 
 always @(*)
 begin
-    MA <= ((MPC_En) ? PC_In : PC);
+    MA <= PC_In;
 end
 
 endmodule
