@@ -48,10 +48,10 @@
 // Target Devices:  Generic SRAM-based FPGA 
 // Tool versions:   Xilinx ISE10.1i SP3
 //
-// Description: 
+// Description:     (See additional comments section below)
 //
-// Dependencies:    M65C02_MPC.v
-//                      M65C02_uPgm_V3.coe (M65C02_uPgm_V3.txt)
+// Dependencies:    M65C02_MPCv3.v
+//                      M65C02_uPgm_V3a.coe (M65C02_uPgm_V3a.txt)
 //                      M65C02_Decoder_ROM.coe (M65C02_Decoder_ROM.txt)
 //                  M65C02_ALU.v
 //                      M65C02_Bin.v
