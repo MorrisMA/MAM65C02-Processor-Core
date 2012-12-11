@@ -1,11 +1,11 @@
 # 
-# Project automation script for MAM6502 
+# Project automation script for M65C02 
 # 
 # Created for ISE version 10.1
 # 
 # This file contains several Tcl procedures (procs) that you can use to automate
 # your project by running from xtclsh or the Project Navigator Tcl console.
-# If you load this file (using the Tcl command: source C:/XProjects/ISE10.1i/MAM6502/M65C02.tcl, then you can
+# If you load this file (using the Tcl command: source M65C02.tcl, then you can
 # run any of the procs included here.
 # You may also edit any of these procs to customize them. See comments in each
 # proc for more instructions.
@@ -31,8 +31,8 @@
 #        when this script was generated.
 # 
 
-set myProject "MAM6502.ise"
-set myScript "C:/XProjects/ISE10.1i/MAM6502/M65C02.tcl"
+set myProject "M65C02.ise"
+set myScript "M65C02.tcl"
 
 # 
 # Main (top-level) routines
@@ -181,15 +181,15 @@ proc set_project_props {} {
    puts "$myScript: Setting project properties..."
 
    project set family "Spartan3A and Spartan3AN"
-   project set device "xc3s200a"
-   project set package "ft256"
+   project set device "xc3s200an"
+   project set package "ftg256"
    project set speed "-5"
    project set top_level_module_type "HDL"
    project set synthesis_tool "XST (VHDL/Verilog)"
    project set simulator "ISE Simulator (VHDL/Verilog)"
    project set "Preferred Language" "Verilog"
-   project set "Enable Message Filtering" "false"
-   project set "Display Incremental Messages" "false"
+   project set "Enable Message Filtering" "true"
+   project set "Display Incremental Messages" "true"
 
 }
 
@@ -210,7 +210,6 @@ proc add_source_files {} {
 
    puts "$myScript: Adding sources to project..."
 
-   xfile add "../../../MAM/MAM6502/M65C02_Tst2.a65"
    xfile add "M65C02.ucf"
    xfile add "M65C02.v"
    xfile add "M65C02_ALU.v"
@@ -219,23 +218,23 @@ proc add_source_files {} {
    xfile add "M65C02_BIN.v"
    xfile add "M65C02_Base.v"
    xfile add "M65C02_Core.v"
-   xfile add "M65C02_Decoder_ROM.coe"
    xfile add "M65C02_Decoder_ROM.txt"
    xfile add "M65C02_MPC.v"
    xfile add "M65C02_MPCv3.v"
    xfile add "M65C02_Mnemonics.txt"
    xfile add "M65C02_RAM.txt"
    xfile add "M65C02_RAM.v"
+   xfile add "M65C02_Tst.txt"
    xfile add "M65C02_Tst2.txt"
-   xfile add "M65C02_uPgm_V3.coe"
    xfile add "M65C02_uPgm_V3.txt"
+   xfile add "M65C02_uPgm_V3a.txt"
    xfile add "tb_M65C02_ALU.v"
    xfile add "tb_M65C02_BCD.v"
    xfile add "tb_M65C02_Core.v"
    xfile add "tb_M65C02_RAM.v"
 
    # Set the Top Module as well...
-   project set top "M65C02_Base"
+   project set top "M65C02_Core"
 
    puts "$myScript: project sources reloaded."
 
@@ -309,7 +308,7 @@ proc set_process_props {} {
 
    project set "Compiled Library Directory" "\$XILINX/<language>/<simulator>"
    project set "Use SmartGuide" "false"
-   project set "SmartGuide Filename" "M65C02_Base_guide.ncd"
+   project set "SmartGuide Filename" "M65C02_Core_guide.ncd"
    project set "Multiplier Style" "Auto" -process "Synthesize - XST"
    project set "Configuration Rate" "25" -process "Generate Programming File"
    project set "Map to Input Functions" "4" -process "Map"
@@ -330,7 +329,7 @@ proc set_process_props {} {
    project set "XOR Collapsing" "true" -process "Synthesize - XST"
    project set "Other Bitgen Command Line Options" "" -process "Generate Programming File"
    project set "Show All Models" "false" -process "Generate IBIS Model"
-   project set "Target UCF File Name" "M65C02.ucf" -process "Back-annotate Pin Locations"
+   project set "Target UCF File Name" "M65C02_Base.ucf" -process "Back-annotate Pin Locations"
    project set "Ignore User Timing Constraints" "false" -process "Map"
    project set "Use RLOC Constraints" "true" -process "Map"
    project set "Other Map Command Line Options" "" -process "Map"
@@ -374,7 +373,7 @@ proc set_process_props {} {
    project set "Disable Register Ordering" "false" -process "Map"
    project set "Pack I/O Registers/Latches into IOBs" "For Inputs and Outputs" -process "Map"
    project set "Replicate Logic to Allow Logic Level Reduction" "true" -process "Map"
-   project set "Generate Detailed MAP Report" "true" -process "Map"
+   project set "Generate Detailed MAP Report" "false" -process "Map"
    project set "Map Slice Logic into Unused Block RAMs" "false" -process "Map"
    project set "Perform Timing-Driven Packing and Placement" "true" -process "Map"
    project set "Trim Unconnected Signals" "true" -process "Map"
@@ -395,7 +394,7 @@ proc set_process_props {} {
    project set "Register Balancing" "Yes" -process "Synthesize - XST"
    project set "Register Duplication" "true" -process "Synthesize - XST"
    project set "Asynchronous To Synchronous" "false" -process "Synthesize - XST"
-   project set "Automatic BRAM Packing" "true" -process "Synthesize - XST"
+   project set "Automatic BRAM Packing" "false" -process "Synthesize - XST"
    project set "BRAM Utilization Ratio" "100" -process "Synthesize - XST"
    project set "Bus Delimiter" "<>" -process "Synthesize - XST"
    project set "Case" "Maintain" -process "Synthesize - XST"
@@ -434,8 +433,8 @@ proc set_process_props {} {
    project set "Mux Style" "Auto" -process "Synthesize - XST"
    project set "RAM Style" "Auto" -process "Synthesize - XST"
    project set "Timing Mode" "Non Timing Driven" -process "Map"
-   project set "Generate Asynchronous Delay Report" "true" -process "Place & Route"
-   project set "Generate Clock Region Report" "true" -process "Place & Route"
+   project set "Generate Asynchronous Delay Report" "false" -process "Place & Route"
+   project set "Generate Clock Region Report" "false" -process "Place & Route"
    project set "Generate Post-Place & Route Simulation Model" "false" -process "Place & Route"
    project set "Generate Post-Place & Route Static Timing Report" "true" -process "Place & Route"
    project set "Nodelist File (Unix Only)" "" -process "Place & Route"
@@ -454,11 +453,11 @@ proc set_process_props {} {
    project set "Move Last Flip-Flop Stage" "true" -process "Synthesize - XST"
    project set "ROM Style" "Auto" -process "Synthesize - XST"
    project set "Safe Implementation" "No" -process "Synthesize - XST"
-   project set "Extra Effort" "Continue on Impossible" -process "Map"
+   project set "Extra Effort" "Normal" -process "Map"
    project set "Power Activity File" "" -process "Map"
    project set "Power Activity File" "" -process "Place & Route"
    project set "MultiBoot: Next Configuration Mode" "000" -process "Generate Programming File"
-   project set "Extra Effort (Highest PAR level only)" "Continue on Impossible" -process "Place & Route"
+   project set "Extra Effort (Highest PAR level only)" "Normal" -process "Place & Route"
 
    puts "$myScript: project property values set."
 

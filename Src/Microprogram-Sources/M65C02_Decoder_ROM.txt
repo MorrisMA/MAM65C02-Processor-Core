@@ -1,6 +1,6 @@
 header
 Project: M65C02_Decoder_ROM
-File Revision: 0013
+File Revision: 0014
 Author(s): Michael A. Morris
 Description: M65C02 Instruction Decoder ROM
 endh
@@ -16,7 +16,7 @@ endh
 --  information storage and retrieval system in violation of the license under
 --  which the source code is released.
 --
---  The souce code contained herein is free; it may be redistributed and/or
+--  The souce code contained herein is free; it may be redistributed and/or 
 --  modified in accordance with the terms of the GNU Lesser General Public
 --  License as published by the Free Software Foundation; either version 2.1 of
 --  the GNU Lesser General Public License, or any later version.
@@ -35,7 +35,7 @@ endh
 --  Boston, MA  02110-1301 USA
 --
 --  Further, no use of this source code is permitted in any form or means
---  without inclusion of this banner prominently in any derived works.
+--  without inclusion of this banner prominently in any derived works. 
 --
 --  Michael A. Morris
 --  Huntsville, AL
@@ -99,28 +99,33 @@ endh
 --                          to the processor status word.
 --
 --  0011    12B23   mam     Corrected incorrectly coded microword for NOP_1F.
---                          The ALU Op field was not set to XFR as it should
+--                          The ALU Op field was not set to XFR as it should 
 --                          have been.
 --
 --  0012    12C04   mam     Corrected two entries: ora (dp) and sta (dp),y. The
---                          first had an AND operation programmed instead of an
+--                          first had an AND operation programmed instead of an 
 --                          ORA. The second was typed in as an sty (dp),y, so
 --                          the output select field was set for Y instead of A.
 --
 --  0013    12K17   mam     RMW flag not set for INC and DEC instructions.
 --
+--  0014    12L09   mam     Change definitions of Mode to add STP and WAI. Up-
+--                          dated Mode fields for JMP, and added the STP/WAI
+--                          instructions. Corrected the mode of the PLA instruc-
+--                          tion from INT to STK.
+--
 --------------------------------------------------------------------------------
 -- Instruction (Next Address and Data) Field
 --------------------------------------------------------------------------------
 
-INT         .asm    0       -- Idle/Single Cycle Instruction
-MEM         .asm    1       -- Memory Operation Instruction
-STK         .asm    2       -- Stack Operation Instruction (PLx/PHx)
-JMP         .asm    3       -- Jump/Branch Operation
-JSR         .asm    4       -- JSR Instruction
-RTN         .asm    5       -- Return Instruction (RTS/RTI)
-INV         .asm    6       -- Invalid Instruction/NOP
-BRK         .asm    7       -- BRK Instruction/Trap/Interrupt
+STP         .asm    0       -- Stop Processor Instruction
+INV         .asm    1       -- Invalid Instruction
+BRK         .asm    2       -- BRK Instruction/Trap/Interrupt
+JMP         .asm    3       -- Bcc/JMP/JSR/RTS/RTI Instruction
+STK         .asm    4       -- Stack Operation Instruction (PLx/PHx)
+INT         .asm    5       -- Internal Operation Instruction
+MEM         .asm    6       -- Memory Operation Instruction
+WAI         .asm    7       -- Waiting for Interrupt Instruction (NMI/IRQ)
 
 --------------------------------------------------------------------------------
 -- ROM ( output ) Field definitions
@@ -256,22 +261,22 @@ _start:     .org    0
 
 --------------------------------------------------------------------------------
 
-    BRK     0,XFR,QS_A,0,0,0,WS_P,    ,BRK ,0x00       -- 00: BRK #imm
-    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x01       -- 01: ORA (dp,X)
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x02       -- 02: NOP
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x03       -- 03: NOP
-    MEM     1,TSB,QS_A,0,0,0,WS_P,    ,Z   ,0x04       -- 04: TSB dp
-    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x05       -- 05: ORA dp
-    MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x06       -- 06: ASL dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x07       -- 07: NOP
-    STK     0,XFR,QS_A,0,0,0,    ,OS_P,    ,0x08       -- 08: PHP
-    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x09       -- 09: ORA #imm
-    INT     0,ASL,QS_A,0,0,0,WS_A,    ,NZC ,0x0A       -- 0A: ASL A
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x0B       -- 0B: NOP
-    MEM     1,TSB,QS_A,0,0,0,WS_P,    ,Z   ,0x0C       -- 0C: TSB abs
-    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x0D       -- 0D: ORA abs
-    MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x0E       -- OE: ASL abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x0F       -- 0F: NOP
+    BRK     0,XFR,QS_A,0,0,0,WS_P,    ,BRK ,0x00      -- 00: BRK #imm
+    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x01      -- 01: ORA (dp,X)
+    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x02      -- 02: NOP
+    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x03      -- 03: NOP
+    MEM     1,TSB,QS_A,0,0,0,WS_P,    ,Z   ,0x04      -- 04: TSB dp
+    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x05      -- 05: ORA dp
+    MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x06      -- 06: ASL dp
+    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x07      -- 07: NOP
+    STK     0,XFR,QS_A,0,0,0,    ,OS_P,    ,0x08      -- 08: PHP
+    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x09      -- 09: ORA #imm
+    INT     0,ASL,QS_A,0,0,0,WS_A,    ,NZC ,0x0A      -- 0A: ASL A
+    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x0B      -- 0B: NOP
+    MEM     1,TSB,QS_A,0,0,0,WS_P,    ,Z   ,0x0C      -- 0C: TSB abs
+    MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x0D      -- 0D: ORA abs
+    MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x0E      -- OE: ASL abs
+    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x0F      -- 0F: NOP
 
 --------------------------------------------------------------------------------
 
@@ -294,7 +299,7 @@ _start:     .org    0
 
 --------------------------------------------------------------------------------
 
-    JSR     0,XFR,QS_A,0,0,0,    ,    ,    ,0x20      -- 20: JSR abs
+    JMP     0,XFR,QS_A,0,0,0,    ,    ,    ,0x20      -- 20: JSR abs
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x21      -- 21: AND (dp,X)
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x22      -- 22: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x23      -- 23: NOP
@@ -332,7 +337,7 @@ _start:     .org    0
 
 --------------------------------------------------------------------------------
 
-    RTN     0,XFR,QS_A,0,0,0,WS_P,    ,PSW ,0x40      -- 40: RTI
+    JMP     0,XFR,QS_A,0,0,0,WS_P,    ,PSW ,0x40      -- 40: RTI
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x41      -- 41: EOR (dp,X)
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x42      -- 42: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x43      -- 43: NOP
@@ -370,7 +375,7 @@ _start:     .org    0
 
 --------------------------------------------------------------------------------
 
-    RTN     0,XFR,QS_A,0,0,0,    ,    ,    ,0x60      -- 60: RTS
+    JMP     0,XFR,QS_A,0,0,0,    ,    ,    ,0x60      -- 60: RTS
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x61      -- 61: ADC (dp,X)
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x62      -- 62: NOP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x63      -- 63: NOP
@@ -378,7 +383,7 @@ _start:     .org    0
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x65      -- 65: ADC dp
     MEM     1,ROR,QS_M,0,0,0,WS_P,    ,NZC ,0x66      -- 66: ROR dp
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x67      -- 67: NOP
-    INT     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0x68      -- 68: PLA
+    STK     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0x68      -- 68: PLA
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x69      -- 69: ADC #imm
     MEM     0,ROR,QS_A,0,0,0,WS_A,    ,NZC ,0x6A      -- 6A: ROR A
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x6B      -- 6B: NOP
@@ -495,7 +500,7 @@ _start:     .org    0
     INT     0,INC,QS_Y,1,0,1,WS_Y,    ,NZ  ,0xC8      -- C8: INY
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xC9      -- C9: CMP #imm
     INT     0,DEC,QS_X,1,1,1,WS_X,    ,NZ  ,0xCA      -- CA: DEX
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xCB      -- CB: NOP
+    WAI     0,XFR,QS_A,0,0,0,    ,    ,    ,0xCB      -- CB: WAI
     MEM     0,CMP,QS_Y,0,1,1,WS_P,    ,NZC ,0xCC      -- CC: CPY abs
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xCD      -- CD: CMP abs
     MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xCE      -- CE: DEC abs
@@ -514,7 +519,7 @@ _start:     .org    0
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,CLD ,0xD8      -- D8: CLD
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xD9      -- D9: CMP abs,Y
     STK     0,XFR,QS_A,0,0,0,    ,OS_X,    ,0xDA      -- DA: PHX
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDB      -- DB: NOP
+    STP     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDB      -- DB: STP
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDC      -- DC: NOP
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xDD      -- DD: CMP abs,X
     MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xDE      -- DE: DEC abs,X

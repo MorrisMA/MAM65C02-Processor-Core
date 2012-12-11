@@ -1,8 +1,24 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  M650C02 Instruction and Addressing Mode Mnemonics
+//  M65C02 Mode, Instruction, and Addressing Mode Mnemonics
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+//  Convert Mode to Mnemonics
+
+always @(Mode)
+begin
+    case(Mode)
+        3'b000 : Op <= "STP";
+        3'b001 : Op <= "INV";
+        3'b010 : Op <= "BRK";
+        3'b011 : Op <= "JMP";
+        3'b100 : Op <= "STK";
+        3'b101 : Op <= "INT";
+        3'b110 : Op <= "MEM";
+        3'b111 : Op <= "WAI";
+    endcase
+end
 
 //  Convert IR to Instruction Mnemonics
 

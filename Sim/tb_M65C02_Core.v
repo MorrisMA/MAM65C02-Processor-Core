@@ -64,14 +64,17 @@
 
 module tb_M65C02_Core;
 
-    parameter pRst_Vector = 16'h0210;
-    parameter pIRQ_Vector = 16'h021B;
-    parameter pBrk_Vector = 16'h021B;
+//    parameter pRst_Vector = 16'hF800;
+//    parameter pIRQ_Vector = 16'hF808;
+//    parameter pBrk_Vector = 16'hF808;
+    parameter pRst_Vector = 16'hFFFC;
+    parameter pIRQ_Vector = 16'hFFFE;
+    parameter pBrk_Vector = 16'hFFFE;
     
     parameter pInt_Hndlr  = 9'h021;
     
-    parameter pIRQ_On     = 16'hFFFE;
-    parameter pIRQ_Off    = 16'hFFFF;
+    parameter pIRQ_On     = 16'hFFF8;
+    parameter pIRQ_Off    = 16'hFFF9;
     
     parameter pIO_WR      = 2'b01;
     
@@ -132,8 +135,9 @@ module tb_M65C02_Core;
     reg     [15:0] val;             // Instruction Histogram variable
     reg     [ 7:0] i, j;            // loop counters
     
-    reg     [((5*8) - 1):0] Opcode;
-    reg     [((9*8) - 1):0] AddrMd;
+    reg     [((5*8) - 1):0] Op;     // Processor Mode Mnemonics String
+    reg     [((5*8) - 1):0] Opcode; // Opcode Mnemonics String
+    reg     [((9*8) - 1):0] AddrMd; // Addressing Mode Mnemonics String
 
 // Instantiate the Unit Under Test (UUT)
 
@@ -146,7 +150,8 @@ M65C02_Core #(
             .Clk(Clk), 
             
             .IRQ_Msk(IRQ_Msk), 
-            .Int(Int), 
+            .Int(Int),
+            .xIRQ(Int),            
             .Vector(Vector), 
             
             .Done(Done),
@@ -160,7 +165,7 @@ M65C02_Core #(
 //            .uLen(2'b11),     // Len 4 Cycle 
 //            .uLen(2'b1),      // Len 2 Cycle 
             .uLen(2'b0),      // Len 1 Cycle
-            .Wait(1'b0), 
+            .Wait(Wait), 
             .Rdy(Rdy),
             
             .IO_Op(IO_Op), 
@@ -221,6 +226,7 @@ M65C02_Base #(
             
             .IRQ_Msk(Ref_IRQ_Msk), 
             .Int(Int), 
+            .xIRQ(Int),            
             .Vector(Vector), 
             
             .Done(Ref_Done),
@@ -252,10 +258,36 @@ M65C02_Base #(
             
 //  Instantiate RAM Module
 
+wire    [7:0] ROM_DO;
+reg     ROM_WE;
+
 M65C02_RAM  #(
                 .pAddrSize(pRAM_AddrWidth),
                 .pDataSize(8),
-                .pFileName("M65C02_Tst2.txt")
+                .pFileName("M65C02_Tst3.txt")
+            ) ROM (
+                .Clk(Clk),
+//                .Ext(1'b1),     // 4 cycle memory
+//                .ZP(1'b0),
+//                .Ext(1'b0),     // 2 cycle memory
+//                .ZP(1'b0),
+                .Ext(1'b0),   // 1 cycle memory
+                .ZP(1'b1),
+                .WE(ROM_WE),
+                .AI(AO[(pRAM_AddrWidth - 1):0]),
+                .DI(DO),
+                .DO(ROM_DO)
+            );
+
+//  Instantiate RAM Module
+
+wire    [7:0] RAM_DO;
+reg     RAM_WE;
+
+M65C02_RAM  #(
+                .pAddrSize(pRAM_AddrWidth),
+                .pDataSize(8),
+                .pFileName("M65C02_Tst3.txt")
             ) RAM (
                 .Clk(Clk),
 //                .Ext(1'b1),     // 4 cycle memory
@@ -264,10 +296,10 @@ M65C02_RAM  #(
 //                .ZP(1'b0),
                 .Ext(1'b0),   // 1 cycle memory
                 .ZP(1'b1),
-                .WE((IO_Op == 1)),
+                .WE(RAM_WE),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),
                 .DI(DO),
-                .DO(DI)
+                .DO(RAM_DO)
             );
 
 initial begin
@@ -275,6 +307,7 @@ initial begin
     Rst    = 1;
     Clk    = 1;
     Int    = 0;
+    Wait   = 0;
     Vector = pRst_Vector;
     
     // Intialize Simulation Time Format
@@ -309,6 +342,17 @@ always #5 Clk = ~Clk;
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 //
+//  Generate Write Enables for "ROM" and "RAM" modules and multiplex DO onto DI
+//
+
+always @(*) ROM_WE = (IO_Op == 1) & ( &AO[15:pRAM_AddrWidth]);
+always @(*) RAM_WE = (IO_Op == 1) & (~|AO[15:pRAM_AddrWidth]);
+
+assign DI = ((&AO[15:pRAM_AddrWidth]) ? ROM_DO : RAM_DO);
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//
 //  Generate Ack for Reference Core - M65C02_Base
 //
 
@@ -321,7 +365,9 @@ always @(*) Ref_Ack = (MC == 0);
 
 always @(*)
 begin
-    Vector = ((&Mode) ? pBrk_Vector : ((Int) ? pIRQ_Vector : pRst_Vector));
+    Vector = ((Mode == 3'b010) ? pBrk_Vector
+                               : ((Int) ? pIRQ_Vector
+                                        : pRst_Vector));
 end
 
 // Simulate Interrupts
@@ -366,7 +412,7 @@ begin
              IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ref_Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
 
     if(Done & Rdy) begin
-        if((AO == 16'h0210)) begin
+        if((AO == 16'hF800)) begin
             if((Loop_Start == 1)) begin
                 for(i = 0; i < 16; i = i + 1)
                     for(j = 0; j < 16; j = j + 1) begin

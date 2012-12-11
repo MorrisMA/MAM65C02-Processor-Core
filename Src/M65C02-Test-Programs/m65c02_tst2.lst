@@ -8,46 +8,47 @@ AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood       
                  Abs : $0208            520
             AbsI_Dst : $0218            536
                 AbsX : $0209            521
-           AbsXI_Dst : $021c            540
+           AbsXI_Dst : $0228            552
                 AbsY : $020a            522
              Abs_Dst : $0214            532
-             BCD_Tst : $05da           1498
-            Continue : $0243            579
+             BCD_Tst : $05e4           1508
+            Continue : $024f            591
                   DP : $0010             16
                  DPX : $0011             17
                  DPY : $0012             18
-             Err_BCC : $022b            555
-             Err_BCS : $0231            561
-            Err_BCS2 : $023d            573
-             Err_BEQ : $0233            563
-             Err_BMI : $0228            552
-             Err_BNE : $023a            570
-             Err_BPL : $0224            548
-             Err_BVC : $022f            559
-             Err_BVS : $0238            568
-                 Fwd : $0241            577
+             Err_BCC : $0237            567
+             Err_BCS : $023d            573
+            Err_BCS2 : $0249            585
+             Err_BEQ : $023f            575
+             Err_BMI : $0234            564
+             Err_BNE : $0246            582
+             Err_BPL : $0230            560
+             Err_BVC : $023b            571
+             Err_BVS : $0244            580
+                 Fwd : $024d            589
            Interrupt : $021b            539
              IRQ_Off : $ffff          65535
               IRQ_On : $fffe          65534
-             IRQ_Tst : $05f1           1521
-            IRQ_Tst2 : $05f9           1529
-            IRQ_Tst3 : $0600           1536
-            IRQ_Tst4 : $0603           1539
+             IRQ_Tst : $05fb           1531
+            IRQ_Tst2 : $0603           1539
+            IRQ_Tst3 : $060a           1546
+            IRQ_Tst4 : $060d           1549
+             ISR_End : $0227            551
             Jmp_AbsI : $0200            512
            Jmp_AbsXI : $0202            514
-          Last_Addrs : $0662           1634
+          Last_Addrs : $066c           1644
                 pDPI : $0008              8
                pDPIY : $000c             12
                pDPXI : $000a             10
               Return : $0213            531
                Start : $0210            528
-           Test_Main : $0220            544
-             Tst_BPL : $0222            546
+           Test_Main : $022c            556
+             Tst_BPL : $022e            558
           __65SC02__ : $0001              1
 
-39 labels used
+40 labels used
 
-828 lines read, no errors in pass 1.
+839 lines read, no errors in pass 1.
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    2
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
@@ -137,7 +138,7 @@ ffff =                       IRQ_Off     equ     $FFFF       ;; Clr External Int
 0200 =                                   org     512
                              ;
 0200 : 1802                  Jmp_AbsI    dw      AbsI_Dst
-0202 : 1c02                  Jmp_AbsXI   dw      AbsXI_Dst
+0202 : 2802                  Jmp_AbsXI   dw      AbsXI_Dst
                              ;
 0208 =                                   org     512+8
                              ;
@@ -153,779 +154,790 @@ ffff =                       IRQ_Off     equ     $FFFF       ;; Clr External Int
 0214 : 6c0002           [ 6] Abs_Dst     jmp     (Jmp_AbsI)
 0217 : ea               [ 2]             nop
 0218 : 7c0202           [ 6] AbsI_Dst    jmp     (Jmp_AbsXI, x)
-021b : 40               [ 6] Interrupt   rti
-021c : 201302           [ 6] AbsXI_Dst   jsr     Return
-021f : ea               [ 2]             nop
-0220 : 801f             [ 3] Test_Main   bra     Fwd         ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-0222 : a980             [ 2] Tst_BPL     lda     #$80        ;; Imm, A = 0x80, P = 0xA4
-0224 : 10fe             [ 3] Err_BPL     bpl     Err_BPL     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-0226 : 4980             [ 2]             eor     #$80        ;; Imm, A = 0x00, P = 0x26
-0228 : 30fe             [ 3] Err_BMI     bmi     Err_BMI     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-022a : 38               [ 2]             sec                 ;; Imp, A = 0x00, P = 0x27
-022b : 90fe             [ 3] Err_BCC     bcc     Err_BCC     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-022d : e980             [ 2]             sbc     #$80        ;; Imm, A = 0x80, P = 0xE4
+                             ;;
+021b : 48               [ 3] Interrupt   pha                 ;; preserve Acc
+021c : 08               [ 3]             php                 ;; push current PSW, on entry D cleared and 
+021d : 68               [ 4]             pla                 ;; I should be set
+021e : 8908             [ 2]             bit     #$08        ;; check if BCD mode not set
+0220 : d0fe             [ 3]             bne     *           ;; if <> 0, error
+0222 : 8904             [ 2]             bit     #$04        ;; check is Interrupt Mask set
+0224 : f0fe             [ 3]             beq     *           ;; if == 0, error
+0226 : 68               [ 4]             pla                 ;; restore Acc
+0227 : 40               [ 6] ISR_End     rti                 ;; Exit ISR
+                             ;;
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    4
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-022f : 50fe             [ 3] Err_BVC     bvc     Err_BVC     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-0231 : b0fe             [ 3] Err_BCS     bcs     Err_BCS     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-0233 : f0fe             [ 3] Err_BEQ     beq     Err_BEQ     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-0235 : e97f             [ 2]             sbc     #$7F        ;; Imm, A = 0x00, P = 0x67
-0237 : b8               [ 2]             clv                 ;; Imp, A = 0x00, P = 0x27
-0238 : 70fe             [ 3] Err_BVS     bvs     Err_BVS     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-023a : d0fe             [ 3] Err_BNE     bne     Err_BNE     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-023c : 18               [ 2]             clc                 ;; Imp, A = 0x00, P = 0x26
-023d : b0fe             [ 3] Err_BCS2    bcs     Err_BCS2    ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
-023f : 8002             [ 3]             bra     Continue
-0241 : 80df             [ 3] Fwd         bra     Tst_BPL     ;; Test Conditional Branch Instructions
+0228 : 201302           [ 6] AbsXI_Dst   jsr     Return
+022b : ea               [ 2]             nop
+022c : 801f             [ 3] Test_Main   bra     Fwd         ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+022e : a980             [ 2] Tst_BPL     lda     #$80        ;; Imm, A = 0x80, P = 0xA4
+0230 : 10fe             [ 3] Err_BPL     bpl     Err_BPL     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+0232 : 4980             [ 2]             eor     #$80        ;; Imm, A = 0x00, P = 0x26
+0234 : 30fe             [ 3] Err_BMI     bmi     Err_BMI     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+0236 : 38               [ 2]             sec                 ;; Imp, A = 0x00, P = 0x27
+0237 : 90fe             [ 3] Err_BCC     bcc     Err_BCC     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+0239 : e980             [ 2]             sbc     #$80        ;; Imm, A = 0x80, P = 0xE4
+023b : 50fe             [ 3] Err_BVC     bvc     Err_BVC     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+023d : b0fe             [ 3] Err_BCS     bcs     Err_BCS     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+023f : f0fe             [ 3] Err_BEQ     beq     Err_BEQ     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+0241 : e97f             [ 2]             sbc     #$7F        ;; Imm, A = 0x00, P = 0x67
+0243 : b8               [ 2]             clv                 ;; Imp, A = 0x00, P = 0x27
+0244 : 70fe             [ 3] Err_BVS     bvs     Err_BVS     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+0246 : d0fe             [ 3] Err_BNE     bne     Err_BNE     ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+0248 : 18               [ 2]             clc                 ;; Imp, A = 0x00, P = 0x26
+0249 : b0fe             [ 3] Err_BCS2    bcs     Err_BCS2    ;; Rel, P = {N, V, 1'b1, B, D, I, Z, C}
+024b : 8002             [ 3]             bra     Continue
+024d : 80df             [ 3] Fwd         bra     Tst_BPL     ;; Test Conditional Branch Instructions
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Implicit/Accumulator/Immediate Address Instructions
                              ;;
-0243 : ea               [ 2] Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
+024f : ea               [ 2] Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
                              ;;
-0244 : 58               [ 2]             cli                 ;; Imp, A   = 0x00, P = 0x22
-0245 : 08               [ 3]             php                 ;; Psh, (S) = 0x22, P = 0x22
-0246 : 68               [ 4]             pla                 ;; Pop, A   = 0x22, P = 0x20
-0247 : 2904             [ 2]             and     #$04        ;; Imm, A   = 0x00, P = 0x22
-0249 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x00, P = 0x22
-024b : ea               [ 2]             nop                 ;; Imp, A   = 0x00, P = 0x22
+0250 : 58               [ 2]             cli                 ;; Imp, A   = 0x00, P = 0x22
+0251 : 08               [ 3]             php                 ;; Psh, (S) = 0x22, P = 0x22
+0252 : 68               [ 4]             pla                 ;; Pop, A   = 0x22, P = 0x20
+0253 : 2904             [ 2]             and     #$04        ;; Imm, A   = 0x00, P = 0x22
+0255 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x00, P = 0x22
+0257 : ea               [ 2]             nop                 ;; Imp, A   = 0x00, P = 0x22
                              ;;
-024c : 78               [ 2]             sei                 ;; Imp, A   = 0x00, P = 0x26
-024d : 08               [ 3]             php                 ;; Psh, (S) = 0x26, P = 0x26
-024e : 68               [ 4]             pla                 ;; Pop, A   = 0x26, P = 0x24
-024f : 2904             [ 2]             and     #$04        ;; Imm, A   = 0x04, P = 0x24
-0251 : f0fe             [ 3]             beq     *           ;; Rel, A   = 0x04, P = 0x24
-0253 : ea               [ 2]             nop                 ;; Imp, A   = 0x04, P = 0x24
+0258 : 78               [ 2]             sei                 ;; Imp, A   = 0x00, P = 0x26
+0259 : 08               [ 3]             php                 ;; Psh, (S) = 0x26, P = 0x26
+025a : 68               [ 4]             pla                 ;; Pop, A   = 0x26, P = 0x24
+025b : 2904             [ 2]             and     #$04        ;; Imm, A   = 0x04, P = 0x24
+025d : f0fe             [ 3]             beq     *           ;; Rel, A   = 0x04, P = 0x24
+025f : ea               [ 2]             nop                 ;; Imp, A   = 0x04, P = 0x24
                              ;;
-0254 : f8               [ 2]             sed                 ;; Imp, A   = 0x04, P = 0x2C
-0255 : 08               [ 3]             php                 ;; Psh, (S) = 0x2C, P = 0x2C
-0256 : 68               [ 4]             pla                 ;; Pop, A   = 0x2C, P = 0x2C
-0257 : 2908             [ 2]             and     #$08        ;; Imm, A   = 0x08, P = 0x2C
-0259 : f0fe             [ 3]             beq     *           ;; Rel, A   = 0x08, P = 0x2C
-025b : ea               [ 2]             nop                 ;; Imp, A   = 0x08, P = 0x2C
+0260 : f8               [ 2]             sed                 ;; Imp, A   = 0x04, P = 0x2C
+0261 : 08               [ 3]             php                 ;; Psh, (S) = 0x2C, P = 0x2C
+0262 : 68               [ 4]             pla                 ;; Pop, A   = 0x2C, P = 0x2C
+0263 : 2908             [ 2]             and     #$08        ;; Imm, A   = 0x08, P = 0x2C
+0265 : f0fe             [ 3]             beq     *           ;; Rel, A   = 0x08, P = 0x2C
+0267 : ea               [ 2]             nop                 ;; Imp, A   = 0x08, P = 0x2C
                              ;;
-025c : d8               [ 2]             cld                 ;; Imp, A   = 0x08, P = 0x24
-025d : 08               [ 3]             php                 ;; Psh, A   = 0x08, P = 0x24
-025e : 68               [ 4]             pla                 ;; Pop, A   = 0x24, P = 0x24
-025f : 2908             [ 2]             and     #$08        ;; Imm, A   = 0x00, P = 0x26
-0261 : d0fe             [ 3]             bne     *           ;; Rel, P   = {N, V, 1'b1, B, D, I, Z, C}
-0263 : ea               [ 2]             nop                 ;; Imp, A   = 0x00, P = 0x26
-                             ;;
-0264 : a955             [ 2]             lda     #$55        ;; Imm, A   = 0x55, P = 0x24
-0266 : 09aa             [ 2]             ora     #$AA        ;; Imm, A   = 0xFF, P = 0xA4
-0268 : 48               [ 3]             pha                 ;; Psh, A   = 0xFF, P = 0xA4
-0269 : 28               [ 4]             plp                 ;; Pop, A   = 0xFF, P = 0xEF
-026a : 50fe             [ 3]             bvc     *           ;; Stop if ~V
-026c : d0fe             [ 3]             bne     *           ;; Stop if ~Z
-026e : 90fe             [ 3]             bcc     *           ;; Stop if ~C
-0270 : 10fe             [ 3]             bpl     *           ;; Stop if ~N
-                             ;;
+0268 : d8               [ 2]             cld                 ;; Imp, A   = 0x08, P = 0x24
+0269 : 08               [ 3]             php                 ;; Psh, A   = 0x08, P = 0x24
+026a : 68               [ 4]             pla                 ;; Pop, A   = 0x24, P = 0x24
+026b : 2908             [ 2]             and     #$08        ;; Imm, A   = 0x00, P = 0x26
+026d : d0fe             [ 3]             bne     *           ;; Rel, P   = {N, V, 1'b1, B, D, I, Z, C}
+026f : ea               [ 2]             nop                 ;; Imp, A   = 0x00, P = 0x26
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    5
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-0272 : c9ff             [ 2]             cmp     #$FF        ;; Imm, A   = 0xFF, P = 0x6F Make sure A is -1
-0274 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xFF, P = 0x6F
-0276 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xFF, P = 0x6F
-0278 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xFF, P = 0x6F
                              ;;
-027a : 18               [ 2]             clc                 ;; Imp, A   = 0xFF, P = 0x6E
-027b : d8               [ 2]             cld                 ;; Imp, A   = 0xFF, P = 0x66
-027c : b8               [ 2]             clv                 ;; Imm, A   = 0xFF, P = 0x66
-027d : 6901             [ 2]             adc     #$01        ;; Imm, A   = 0x00, P = 0x27
-027f : 0904             [ 2]             ora     #$04        ;; Imm, A   = 0x04, P = 0x25
-0281 : 48               [ 3]             pha                 ;; Psh, A   = 0x04, P = 0x25
-0282 : 28               [ 4]             plp                 ;; Pop, A   = 0x04, P = 0x24
+0270 : a955             [ 2]             lda     #$55        ;; Imm, A   = 0x55, P = 0x24
+0272 : 09aa             [ 2]             ora     #$AA        ;; Imm, A   = 0xFF, P = 0xA4
+0274 : 48               [ 3]             pha                 ;; Psh, A   = 0xFF, P = 0xA4
+0275 : 28               [ 4]             plp                 ;; Pop, A   = 0xFF, P = 0xEF
+0276 : 50fe             [ 3]             bvc     *           ;; Stop if ~V
+0278 : d0fe             [ 3]             bne     *           ;; Stop if ~Z
+027a : 90fe             [ 3]             bcc     *           ;; Stop if ~C
+027c : 10fe             [ 3]             bpl     *           ;; Stop if ~N
                              ;;
-0283 : a0aa             [ 2]             ldy     #$AA        ;; Imm, Y   = 0xAA, P = 0xA4
-0285 : c0aa             [ 2]             cpy     #$AA        ;; Imm, Y   = 0xAA, P = 0x27
-0287 : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0xAA, P = 0x27
-0289 : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0xAA, P = 0x27
-028b : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0xAA, P = 0x27
-028d : 5a               [ 3]             phy
+027e : c9ff             [ 2]             cmp     #$FF        ;; Imm, A   = 0xFF, P = 0x6F Make sure A is -1
+0280 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xFF, P = 0x6F
+0282 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xFF, P = 0x6F
+0284 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xFF, P = 0x6F
                              ;;
-028e : a255             [ 2]             ldx     #$55        ;; Imm, X   = 0x55, P = 0x25
-0290 : e055             [ 2]             cpx     #$55        ;; Imm, X   = 0x55, P = 0x27
-0292 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0x55, P = 0x27
-0294 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0x55, P = 0x27
-0296 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0x55, P = 0x27
-0298 : da               [ 3]             phx
+0286 : 18               [ 2]             clc                 ;; Imp, A   = 0xFF, P = 0x6E
+0287 : d8               [ 2]             cld                 ;; Imp, A   = 0xFF, P = 0x66
+0288 : b8               [ 2]             clv                 ;; Imm, A   = 0xFF, P = 0x66
+0289 : 6901             [ 2]             adc     #$01        ;; Imm, A   = 0x00, P = 0x27
+028b : 0904             [ 2]             ora     #$04        ;; Imm, A   = 0x04, P = 0x25
+028d : 48               [ 3]             pha                 ;; Psh, A   = 0x04, P = 0x25
+028e : 28               [ 4]             plp                 ;; Pop, A   = 0x04, P = 0x24
                              ;;
-0299 : 7a               [ 4]             ply                 ;; Imm, Y   = 0x55, P = 0x25
-029a : c055             [ 2]             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
-029c : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x55, P = 0x27
-029e : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
-02a0 : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
+028f : a0aa             [ 2]             ldy     #$AA        ;; Imm, Y   = 0xAA, P = 0xA4
+0291 : c0aa             [ 2]             cpy     #$AA        ;; Imm, Y   = 0xAA, P = 0x27
+0293 : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0xAA, P = 0x27
+0295 : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0xAA, P = 0x27
+0297 : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0xAA, P = 0x27
+0299 : 5a               [ 3]             phy
                              ;;
-02a2 : fa               [ 4]             plx                 ;; Imm, X   = 0xAA, P = 0xA5
-02a3 : e0aa             [ 2]             cpx     #$AA        ;; Imm, X   = 0xAA, P = 0x27
-02a5 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xAA, P = 0x27
-02a7 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xAA, P = 0x27
-02a9 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xAA, P = 0x27
+029a : a255             [ 2]             ldx     #$55        ;; Imm, X   = 0x55, P = 0x25
+029c : e055             [ 2]             cpx     #$55        ;; Imm, X   = 0x55, P = 0x27
+029e : d0fe             [ 3]             bne     *           ;; Rel, X   = 0x55, P = 0x27
+02a0 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0x55, P = 0x27
+02a2 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0x55, P = 0x27
+02a4 : da               [ 3]             phx
                              ;;
-02ab : 8904             [ 2]             bit     #$04        ;; Imm, A   = 0x04, P = 0x25
-02ad : f0fe             [ 3]             beq     *           ;; Rel, A   = 0x04, P = 0x25
-02af : 8900             [ 2]             bit     #$00        ;; Imm, A   = 0x04, P = 0x27
-02b1 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x04, P = 0x27
+02a5 : 7a               [ 4]             ply                 ;; Imm, Y   = 0x55, P = 0x25
+02a6 : c055             [ 2]             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
+02a8 : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x55, P = 0x27
+02aa : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
+02ac : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
                              ;;
-02b3 : 98               [ 2]             tya                 ;; Imm, A   = 0x55, P = 0x25
-02b4 : c955             [ 2]             cmp     #$55        ;; Imm, A   = 0x55, P = 0x27
-02b6 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x55, P = 0x27
-02b8 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0x55, P = 0x27
-02ba : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0x55, P = 0x27
+02ae : fa               [ 4]             plx                 ;; Imm, X   = 0xAA, P = 0xA5
+02af : e0aa             [ 2]             cpx     #$AA        ;; Imm, X   = 0xAA, P = 0x27
+02b1 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xAA, P = 0x27
+02b3 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xAA, P = 0x27
+02b5 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xAA, P = 0x27
                              ;;
-02bc : a8               [ 2]             tay                 ;; Imm, Y   = 0x55, P = 0x25
-02bd : c055             [ 2]             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
-02bf : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x55, P = 0x27
-02c1 : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
-02c3 : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
+02b7 : 8904             [ 2]             bit     #$04        ;; Imm, A   = 0x04, P = 0x25
+02b9 : f0fe             [ 3]             beq     *           ;; Rel, A   = 0x04, P = 0x25
+02bb : 8900             [ 2]             bit     #$00        ;; Imm, A   = 0x04, P = 0x27
+02bd : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x04, P = 0x27
+                             ;;
+02bf : 98               [ 2]             tya                 ;; Imm, A   = 0x55, P = 0x25
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    6
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
+02c0 : c955             [ 2]             cmp     #$55        ;; Imm, A   = 0x55, P = 0x27
+02c2 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x55, P = 0x27
+02c4 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0x55, P = 0x27
+02c6 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0x55, P = 0x27
                              ;;
-02c5 : 8a               [ 2]             txa                 ;; Imm, A   = 0xAA, P = 0xA5
-02c6 : c9aa             [ 2]             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
-02c8 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAA, P = 0x27
-02ca : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xAA, P = 0x27
-02cc : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xAA, P = 0x27
+02c8 : a8               [ 2]             tay                 ;; Imm, Y   = 0x55, P = 0x25
+02c9 : c055             [ 2]             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
+02cb : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x55, P = 0x27
+02cd : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
+02cf : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
                              ;;
-02ce : aa               [ 2]             tax                 ;; Imm, X   = 0xAA, P = 0xA5
-02cf : e0aa             [ 2]             cpx     #$AA        ;; Imm, X   = 0xAA, P = 0x27
-02d1 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xAA, P = 0x27
-02d3 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xAA, P = 0x27
-02d5 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xAA, P = 0x27
+02d1 : 8a               [ 2]             txa                 ;; Imm, A   = 0xAA, P = 0xA5
+02d2 : c9aa             [ 2]             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
+02d4 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAA, P = 0x27
+02d6 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xAA, P = 0x27
+02d8 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xAA, P = 0x27
                              ;;
-02d7 : ba               [ 2]             tsx                 ;; Imm, X   = 0xFF, P = 0xA5
-02d8 : 9a               [ 2]             txs                 ;; Imm, S   = 0xFF, P = 0xA5
-02d9 : e0ff             [ 2]             cpx     #$FF        ;; Imm, X   = 0xFF, P = 0x27
-02db : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xFF, P = 0x27
-02dd : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xFF, P = 0x27
-02df : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xFF, P = 0x27
+02da : aa               [ 2]             tax                 ;; Imm, X   = 0xAA, P = 0xA5
+02db : e0aa             [ 2]             cpx     #$AA        ;; Imm, X   = 0xAA, P = 0x27
+02dd : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xAA, P = 0x27
+02df : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xAA, P = 0x27
+02e1 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xAA, P = 0x27
                              ;;
-02e1 : 0a               [ 2]             asl     a           ;; Acc, A   = 0x54, P = 0x25
-02e2 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0x54, P = 0x25
-02e4 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0x54, P = 0x25
-02e6 : c954             [ 2]             cmp     #$54        ;; Imm, A   = 0x54, P = 0x27
-02e8 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x54, P = 0x27
+02e3 : ba               [ 2]             tsx                 ;; Imm, X   = 0xFF, P = 0xA5
+02e4 : 9a               [ 2]             txs                 ;; Imm, S   = 0xFF, P = 0xA5
+02e5 : e0ff             [ 2]             cpx     #$FF        ;; Imm, X   = 0xFF, P = 0x27
+02e7 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xFF, P = 0x27
+02e9 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xFF, P = 0x27
+02eb : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xFF, P = 0x27
                              ;;
-02ea : 2a               [ 2]             rol     a           ;; Acc, A   = 0xA9, P = 0xA5
-02eb : 10fe             [ 3]             bpl     *           ;; Rel, A   = 0xA9, P = 0xA4
-02ed : b0fe             [ 3]             bcs     *           ;; Rel, A   = 0xA9, P = 0xA4
-02ef : c9a9             [ 2]             cmp     #$A9        ;; Imm, A   = 0xA9, P = 0x26
-02f1 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xA9, P = 0x26
+02ed : 0a               [ 2]             asl     a           ;; Acc, A   = 0x54, P = 0x25
+02ee : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0x54, P = 0x25
+02f0 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0x54, P = 0x25
+02f2 : c954             [ 2]             cmp     #$54        ;; Imm, A   = 0x54, P = 0x27
+02f4 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x54, P = 0x27
                              ;;
-02f3 : 4a               [ 2]             lsr     a           ;; Acc, A   = 0x54, P = 0x25
-02f4 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0x54, P = 0x25
-02f6 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0x54, P = 0x25
-02f8 : c954             [ 2]             cmp     #$54        ;; Imm, A   = 0x54, P = 0x27
-02fa : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x54, P = 0x27
+02f6 : 2a               [ 2]             rol     a           ;; Acc, A   = 0xA9, P = 0xA5
+02f7 : 10fe             [ 3]             bpl     *           ;; Rel, A   = 0xA9, P = 0xA4
+02f9 : b0fe             [ 3]             bcs     *           ;; Rel, A   = 0xA9, P = 0xA4
+02fb : c9a9             [ 2]             cmp     #$A9        ;; Imm, A   = 0xA9, P = 0x26
+02fd : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xA9, P = 0x26
                              ;;
-02fc : 6a               [ 2]             ror     a           ;; Acc, A   = 0xAA, P = 0xA4
-02fd : 10fe             [ 3]             bpl     *           ;; Rel, A   = 0xA9, P = 0xA4
-02ff : b0fe             [ 3]             bcs     *           ;; Rel, A   = 0xA9, P = 0xA4
-0301 : c9aa             [ 2]             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
-0303 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAA, P = 0x27
+02ff : 4a               [ 2]             lsr     a           ;; Acc, A   = 0x54, P = 0x25
+0300 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0x54, P = 0x25
+0302 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0x54, P = 0x25
+0304 : c954             [ 2]             cmp     #$54        ;; Imm, A   = 0x54, P = 0x27
+0306 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0x54, P = 0x27
                              ;;
-0305 : 1a               [ 2]             inc     a           ;; Acc, A   = 0xAB, P = 0xA5
-0306 : c9ab             [ 2]             cmp     #$AB        ;; Imm, A   = 0xAB, P = 0x27
-0308 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAB, P = 0x27
-030a : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xAB, P = 0x27
-030c : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xAB, P = 0x27
+0308 : 6a               [ 2]             ror     a           ;; Acc, A   = 0xAA, P = 0xA4
+0309 : 10fe             [ 3]             bpl     *           ;; Rel, A   = 0xA9, P = 0xA4
+030b : b0fe             [ 3]             bcs     *           ;; Rel, A   = 0xA9, P = 0xA4
+030d : c9aa             [ 2]             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
+030f : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAA, P = 0x27
                              ;;
-030e : e8               [ 2]             inx                 ;; Imp, X   = 0x00, P = 0x27
-030f : e000             [ 2]             cpx     #$00        ;; Imm, X   = 0x00, P = 0x27
-0311 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0x00, P = 0x27
-0313 : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0x00, P = 0x27
-0315 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0x00, P = 0x27
+0311 : 1a               [ 2]             inc     a           ;; Acc, A   = 0xAB, P = 0xA5
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    7
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
+0312 : c9ab             [ 2]             cmp     #$AB        ;; Imm, A   = 0xAB, P = 0x27
+0314 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAB, P = 0x27
+0316 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xAB, P = 0x27
+0318 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xAB, P = 0x27
                              ;;
-0317 : c8               [ 2]             iny                 ;; Imp, Y   = 0x56, P = 0x25
-0318 : c056             [ 2]             cpy     #$56        ;; Imm, Y   = 0x56, P = 0x27
-031a : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x56, P = 0x27
-031c : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x56, P = 0x27
-031e : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x56, P = 0x27
+031a : e8               [ 2]             inx                 ;; Imp, X   = 0x00, P = 0x27
+031b : e000             [ 2]             cpx     #$00        ;; Imm, X   = 0x00, P = 0x27
+031d : d0fe             [ 3]             bne     *           ;; Rel, X   = 0x00, P = 0x27
+031f : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0x00, P = 0x27
+0321 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0x00, P = 0x27
                              ;;
-0320 : 3a               [ 2]             dec     a           ;; Acc, A   = 0xAA, P = 0xA5
-0321 : c9aa             [ 2]             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
-0323 : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAA, P = 0x27
-0325 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xAA, P = 0x27
-0327 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xAA, P = 0x27
+0323 : c8               [ 2]             iny                 ;; Imp, Y   = 0x56, P = 0x25
+0324 : c056             [ 2]             cpy     #$56        ;; Imm, Y   = 0x56, P = 0x27
+0326 : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x56, P = 0x27
+0328 : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x56, P = 0x27
+032a : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x56, P = 0x27
                              ;;
-0329 : ca               [ 2]             dex                 ;; Imp, X   = 0xFF, P = 0xA5
-032a : e0ff             [ 2]             cpx     #$FF        ;; Imm, X   = 0xFF, P = 0x27
-032c : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xFF, P = 0x27
-032e : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xFF, P = 0x27
-0330 : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xFF, P = 0x27
+032c : 3a               [ 2]             dec     a           ;; Acc, A   = 0xAA, P = 0xA5
+032d : c9aa             [ 2]             cmp     #$AA        ;; Imm, A   = 0xAA, P = 0x27
+032f : d0fe             [ 3]             bne     *           ;; Rel, A   = 0xAA, P = 0x27
+0331 : 30fe             [ 3]             bmi     *           ;; Rel, A   = 0xAA, P = 0x27
+0333 : 90fe             [ 3]             bcc     *           ;; Rel, A   = 0xAA, P = 0x27
                              ;;
-0332 : 88               [ 2]             dey                 ;; Imp, Y   = 0x55, P = 0x25
-0333 : c055             [ 2]             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
-0335 : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x55, P = 0x27
-0337 : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
-0339 : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
+0335 : ca               [ 2]             dex                 ;; Imp, X   = 0xFF, P = 0xA5
+0336 : e0ff             [ 2]             cpx     #$FF        ;; Imm, X   = 0xFF, P = 0x27
+0338 : d0fe             [ 3]             bne     *           ;; Rel, X   = 0xFF, P = 0x27
+033a : 30fe             [ 3]             bmi     *           ;; Rel, X   = 0xFF, P = 0x27
+033c : 90fe             [ 3]             bcc     *           ;; Rel, X   = 0xFF, P = 0x27
                              ;;
-033b : a900             [ 2]             lda     #$00        ;; Imm, A   = 0x00, P = 0x27
-033d : aa               [ 2]             tax                 ;; Imp, X   = 0x00, P = 0x27
-033e : a8               [ 2]             tay                 ;; Imp, Y   = 0x00, P = 0x27
+033e : 88               [ 2]             dey                 ;; Imp, Y   = 0x55, P = 0x25
+033f : c055             [ 2]             cpy     #$55        ;; Imm, Y   = 0x55, P = 0x27
+0341 : d0fe             [ 3]             bne     *           ;; Rel, Y   = 0x55, P = 0x27
+0343 : 30fe             [ 3]             bmi     *           ;; Rel, Y   = 0x55, P = 0x27
+0345 : 90fe             [ 3]             bcc     *           ;; Rel, Y   = 0x55, P = 0x27
+                             ;;
+0347 : a900             [ 2]             lda     #$00        ;; Imm, A   = 0x00, P = 0x27
+0349 : aa               [ 2]             tax                 ;; Imp, X   = 0x00, P = 0x27
+034a : a8               [ 2]             tay                 ;; Imp, Y   = 0x00, P = 0x27
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Direct/Zero Page Instructions
                              ;;
-033f : 3a               [ 2]             dec     a           ;; Acc,   A   = 0xFF, P = 0xA5
-0340 : 8510             [ 3]             sta     DP          ;; WO_DP, DP  = 0xFF, P = 0xA5
-0342 : 2a               [ 2]             rol     a           ;; Acc,   A   = 0xFF, P = 0xA5
-0343 : 0510             [ 3]             ora     DP          ;; RO_DP, A   = 0xFF, P = 0xA5
-0345 : c9ff             [ 2]             cmp     #$FF        ;; Imm,   A   = 0xFF, P = 0x27
-0347 : d0fe             [ 3]             bne     *           ;; Rel,   A   = 0xFF, P = 0x27
+034b : 3a               [ 2]             dec     a           ;; Acc,   A   = 0xFF, P = 0xA5
+034c : 8510             [ 3]             sta     DP          ;; WO_DP, DP  = 0xFF, P = 0xA5
+034e : 2a               [ 2]             rol     a           ;; Acc,   A   = 0xFF, P = 0xA5
+034f : 0510             [ 3]             ora     DP          ;; RO_DP, A   = 0xFF, P = 0xA5
+0351 : c9ff             [ 2]             cmp     #$FF        ;; Imm,   A   = 0xFF, P = 0x27
+0353 : d0fe             [ 3]             bne     *           ;; Rel,   A   = 0xFF, P = 0x27
                              ;;
-0349 : 6410             [ 3]             stz     DP          ;; WO_DP, DP  = 0x00, P = 0x27
-034b : 3a               [ 2]             dec     a           ;; Acc,   A   = 0xFE, P = 0xA5
-034c : a510             [ 3]             lda     DP          ;; RO_DP, A   = 0x00, P = 0x27
-034e : d0fe             [ 3]             bne     *           ;; Rel,   A   = 0x00, P = 0x27
-0350 : c510             [ 3]             cmp     DP          ;; RO_DP, A   = 0x00, P = 0x27
-0352 : d0fe             [ 3]             bne     *           ;; Rel,   A   = 0x00, P = 0x27
-                             ;;
-0354 : 6410             [ 3]             stz     DP          ;; WO_DP, DP  = 0x00, p = 0x27
-0356 : 88               [ 2]             dey                 ;; Imp,   Y   = 0xFF, P = 0xA5
-0357 : 8410             [ 3]             sty     DP          ;; RO_DP, Y   = 0xFF, P = 0xA5
-0359 : c8               [ 2]             iny                 ;; Imp,   Y   = 0x00, P = 0x27
-035a : a410             [ 3]             ldy     DP          ;; RO_DP, Y   = 0xFF, P = 0xA5
-035c : c0ff             [ 2]             cpy     #$FF        ;; Imm,   Y   = 0xFF, P = 0x27
-035e : d0fe             [ 3]             bne     *
-0360 : c410             [ 3]             cpy     DP          ;; RO_DP, Y   = 0xFF, P = 0x27
+0355 : 6410             [ 3]             stz     DP          ;; WO_DP, DP  = 0x00, P = 0x27
+0357 : 3a               [ 2]             dec     a           ;; Acc,   A   = 0xFE, P = 0xA5
+0358 : a510             [ 3]             lda     DP          ;; RO_DP, A   = 0x00, P = 0x27
+035a : d0fe             [ 3]             bne     *           ;; Rel,   A   = 0x00, P = 0x27
+035c : c510             [ 3]             cmp     DP          ;; RO_DP, A   = 0x00, P = 0x27
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    8
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-0362 : d0fe             [ 3]             bne     *
+035e : d0fe             [ 3]             bne     *           ;; Rel,   A   = 0x00, P = 0x27
                              ;;
-0364 : 6410             [ 3]             stz     DP          ;; WO_DP, DP  = 0x00, p = 0x27
-0366 : ca               [ 2]             dex                 ;; Imp,   X   = 0xFF, P = 0xA5
-0367 : 8610             [ 3]             stx     DP          ;; RO_DP, DP  = 0xFF, P = 0xA5
-0369 : e8               [ 2]             inx                 ;; Imp,   X   = 0x00, P = 0x27
-036a : a610             [ 3]             ldx     DP          ;; RO_DP, X   = 0xFF, P = 0xA5
-036c : e0ff             [ 2]             cpx     #$FF        ;; Imm,   X   = 0xFF, P = 0x27
+0360 : 6410             [ 3]             stz     DP          ;; WO_DP, DP  = 0x00, p = 0x27
+0362 : 88               [ 2]             dey                 ;; Imp,   Y   = 0xFF, P = 0xA5
+0363 : 8410             [ 3]             sty     DP          ;; RO_DP, Y   = 0xFF, P = 0xA5
+0365 : c8               [ 2]             iny                 ;; Imp,   Y   = 0x00, P = 0x27
+0366 : a410             [ 3]             ldy     DP          ;; RO_DP, Y   = 0xFF, P = 0xA5
+0368 : c0ff             [ 2]             cpy     #$FF        ;; Imm,   Y   = 0xFF, P = 0x27
+036a : d0fe             [ 3]             bne     *
+036c : c410             [ 3]             cpy     DP          ;; RO_DP, Y   = 0xFF, P = 0x27
 036e : d0fe             [ 3]             bne     *
-0370 : e410             [ 3]             cpx     DP          ;; RO_DP, X   = 0xFF, P = 0x27
-0372 : d0fe             [ 3]             bne     *
                              ;;
-0374 : 8a               [ 2]             txa                 ;; Imp,   A   = 0xFF, P = 0xA5
-0375 : 4510             [ 3]             eor     DP          ;; RO_DP, A   = 0x00, P = 0x27
-0377 : d0fe             [ 3]             bne     *
+0370 : 6410             [ 3]             stz     DP          ;; WO_DP, DP  = 0x00, p = 0x27
+0372 : ca               [ 2]             dex                 ;; Imp,   X   = 0xFF, P = 0xA5
+0373 : 8610             [ 3]             stx     DP          ;; RO_DP, DP  = 0xFF, P = 0xA5
+0375 : e8               [ 2]             inx                 ;; Imp,   X   = 0x00, P = 0x27
+0376 : a610             [ 3]             ldx     DP          ;; RO_DP, X   = 0xFF, P = 0xA5
+0378 : e0ff             [ 2]             cpx     #$FF        ;; Imm,   X   = 0xFF, P = 0x27
+037a : d0fe             [ 3]             bne     *
+037c : e410             [ 3]             cpx     DP          ;; RO_DP, X   = 0xFF, P = 0x27
+037e : d0fe             [ 3]             bne     *
                              ;;
-0379 : a955             [ 2]             lda     #$55        ;; Imm,   A   = 0x55, P = 0x25
-037b : 8510             [ 3]             sta     DP          ;; WO_DO, DP  = 0x55, P = 0x25
-037d : a9ff             [ 2]             lda     #$FF        ;; Imm,   A   = 0xFF, P = 0xA5
-037f : 2510             [ 3]             and     DP          ;; RO_DP, A   = 0x55, P = 0x25
-0381 : c955             [ 2]             cmp     #$55        ;; Imm,   A   = 0x55, P = 0x27
+0380 : 8a               [ 2]             txa                 ;; Imp,   A   = 0xFF, P = 0xA5
+0381 : 4510             [ 3]             eor     DP          ;; RO_DP, A   = 0x00, P = 0x27
 0383 : d0fe             [ 3]             bne     *
                              ;;
-0385 : 6510             [ 3]             adc     DP          ;; RO_DP, A   = 0xAB, P = 0xE4
-0387 : c9ab             [ 2]             cmp     #$AB        ;; Imm,   A   = 0xAB, P = 0x67
-0389 : d0fe             [ 3]             bne     *
-038b : e510             [ 3]             sbc     DP          ;; RO_DP, A   = 0x55, P = 0x65
-038d : c956             [ 2]             cmp     #$56        ;; Imm,   A   = 0x56, P = 0x67
+0385 : a955             [ 2]             lda     #$55        ;; Imm,   A   = 0x55, P = 0x25
+0387 : 8510             [ 3]             sta     DP          ;; WO_DO, DP  = 0x55, P = 0x25
+0389 : a9ff             [ 2]             lda     #$FF        ;; Imm,   A   = 0xFF, P = 0xA5
+038b : 2510             [ 3]             and     DP          ;; RO_DP, A   = 0x55, P = 0x25
+038d : c955             [ 2]             cmp     #$55        ;; Imm,   A   = 0x55, P = 0x27
 038f : d0fe             [ 3]             bne     *
-0391 : a982             [ 2]             lda     #$82        ;; Imm,   A   = 0x82, P = 0xE5
-0393 : 2410             [ 3]             bit     DP          ;; RO_DP  A   = 0x82, P = 0x67
-0395 : 30fe             [ 3]             bmi     *
-0397 : 50fe             [ 3]             bvc     *
+                             ;;
+0391 : 6510             [ 3]             adc     DP          ;; RO_DP, A   = 0xAB, P = 0xE4
+0393 : c9ab             [ 2]             cmp     #$AB        ;; Imm,   A   = 0xAB, P = 0x67
+0395 : d0fe             [ 3]             bne     *
+0397 : e510             [ 3]             sbc     DP          ;; RO_DP, A   = 0x55, P = 0x65
+0399 : c956             [ 2]             cmp     #$56        ;; Imm,   A   = 0x56, P = 0x67
+039b : d0fe             [ 3]             bne     *
+039d : a982             [ 2]             lda     #$82        ;; Imm,   A   = 0x82, P = 0xE5
+039f : 2410             [ 3]             bit     DP          ;; RO_DP  A   = 0x82, P = 0x67
+03a1 : 30fe             [ 3]             bmi     *
+03a3 : 50fe             [ 3]             bvc     *
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Direct/Zero Page Indexed Instructions
                              ;;
-0399 : a924             [ 2]             lda     #$24        ;; Imm,    A   = 0x24, P = 0x65
-039b : 48               [ 3]             pha                 ;; Imp,    A   = 0x24, P = 0x65
-039c : 28               [ 4]             plp                 ;; Imp,    A   = 0x24, P = 0x24
+03a5 : a924             [ 2]             lda     #$24        ;; Imm,    A   = 0x24, P = 0x65
+03a7 : 48               [ 3]             pha                 ;; Imp,    A   = 0x24, P = 0x65
+03a8 : 28               [ 4]             plp                 ;; Imp,    A   = 0x24, P = 0x24
                              ;;
-039d : 6410             [ 3]             stz     DP          ;; DP,     DP  = 0x00, P = 0x24
-039f : 6411             [ 3]             stz     DP+1        ;; DP,     DPX = 0x00, P = 0x24
-03a1 : 6412             [ 3]             stz     DP+2        ;; DP,     DPY = 0x00, P = 0x24
-                             ;;
-03a3 : a955             [ 2]             lda     #$55        ;; Imm,    A   = 0x55, P = 0x24
-03a5 : 8512             [ 3]             sta     DPY         ;; DP,     DPY = 0x55, P = 0x24
-03a7 : 0a               [ 2]             asl     a           ;; Acc,    A   = 0xAA, P = 0xA4
-03a8 : a611             [ 3]             ldx     DPX         ;; DP,     X   = 0x00, P = 0x26
-03aa : a412             [ 3]             ldy     DPY         ;; DP,     Y   = 0x55, P = 0x26
-                             ;;
-03ac : e8               [ 2]             inx                 ;; Imp,    X   = 0x01, P = 0x24
-03ad : 9510             [ 4]             sta     DP,x        ;; WO_DPX, DPX = 0xAA, P = 0x24
-03af : 4a               [ 2]             lsr     a           ;; Acc,    A   = 0x55, P = 0x24
+03a9 : 6410             [ 3]             stz     DP          ;; DP,     DP  = 0x00, P = 0x24
+03ab : 6411             [ 3]             stz     DP+1        ;; DP,     DPX = 0x00, P = 0x24
+03ad : 6412             [ 3]             stz     DP+2        ;; DP,     DPY = 0x00, P = 0x24
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page    9
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-03b0 : e8               [ 2]             inx                 ;; Imp,    X   = 0x02, P = 0x24
-03b1 : 9510             [ 4]             sta     DP,x        ;; WO_DPX, DPY = 0x55, P = 0x24
-03b3 : ca               [ 2]             dex                 ;; Imp,    X   = 0x01, P = 0x24
-03b4 : 1510             [ 4]             ora     DP,x        ;; RO_DPX, A   = 0xFF, P = 0xA4
-03b6 : 3510             [ 4]             and     DP,x        ;; RO_DPX, A   = 0xAA, P = 0xA4
-03b8 : 5510             [ 4]             eor     DP,x        ;; RO_DPX, A   = 0x00, P = 0x26
-03ba : d0fe             [ 3]             bne     *           ;; Rel,    A   = 0x00, P = 0x26
-03bc : 7410             [ 4]             stz     DP,x        ;; WO_DPX, DPX = 0x00, P = 0x26
-03be : d510             [ 4]             cmp     DP,x        ;; RO_DPX, A   = 0x00, P = 0x27
-03c0 : d0fe             [ 3]             bne     *           ;; Rel,    A   = 0x00, P = 0x27
-03c2 : 90fe             [ 3]             bcc     *           ;; Rel,    A   = 0x00, P = 0x27
-03c4 : e8               [ 2]             inx                 ;; Imp,    X   = 0x02, P = 0x25
-03c5 : b410             [ 4]             ldy     DP,x        ;; RO_DPX, Y   = 0x55, P = 0x25
-03c7 : 98               [ 2]             tya                 ;; Imp,    A   = 0x55, P = 0x25
-03c8 : 0a               [ 2]             asl     a           ;; Acc,    A   = 0xAA, P = 0xA4
-03c9 : 3410             [ 4]             bit     DP,x        ;; RO_DPX, A   = 0xAA, M = 0x55, P = 0x66
-03cb : 30fe             [ 3]             bmi     *           ;; Rel,    A   = 0xAA, P = 0x66
-03cd : 50fe             [ 3]             bvc     *           ;; Rel,    A   = 0xAA, P = 0x66
-03cf : d0fe             [ 3]             bne     *           ;; Rel,    A   = 0xAA, P = 0x66
-03d1 : b8               [ 2]             clv                 ;; Imp,    A   = 0xAA, P = 0x26
-03d2 : 38               [ 2]             sec                 ;; Imp,    A   = 0xAA, P = 0x27
-03d3 : 7510             [ 4]             adc     DP,x        ;; RO_DPX, A   = 0x00, P = 0x27
-03d5 : 18               [ 2]             clc
-03d6 : f510             [ 4]             sbc     DP,x        ;; RO_DPX, A   = 0xAA, P = 0xA4
-03d8 : 10fe             [ 3]             bpl     *           ;; Rel,    A   = 0xAA, P = 0xA4
-03da : 70fe             [ 3]             bvs     *           ;; Rel,    A   = 0xAA, P = 0xA4
-03dc : f0fe             [ 3]             beq     *           ;; Rel,    A   = 0xAA, P = 0xA4
-03de : b0fe             [ 3]             bcs     *           ;; Rel,    A   = 0xAA, P = 0xA4
                              ;;
-03e0 : b50e             [ 4]             lda     DP-2,x      ;; RO_DPX, A   = 0x00, P = 0x26
-03e2 : a8               [ 2]             tay                 ;; Imp,    Y   = 0x00, P = 0x26
-03e3 : 9410             [ 4]             sty     DP,x        ;; WO_DPX, DPY = 0x00, P = 0x26
+03af : a955             [ 2]             lda     #$55        ;; Imm,    A   = 0x55, P = 0x24
+03b1 : 8512             [ 3]             sta     DPY         ;; DP,     DPY = 0x55, P = 0x24
+03b3 : 0a               [ 2]             asl     a           ;; Acc,    A   = 0xAA, P = 0xA4
+03b4 : a611             [ 3]             ldx     DPX         ;; DP,     X   = 0x00, P = 0x26
+03b6 : a412             [ 3]             ldy     DPY         ;; DP,     Y   = 0x55, P = 0x26
                              ;;
-03e5 : b610             [ 4]             ldx     DP,y        ;; RO_DPY, X   = 0x00, P = 0x26
-03e7 : c8               [ 2]             iny                 ;; Imp,    Y   = 0x01, P = 0x24
-03e8 : 9610             [ 4]             stx     DP,y        ;; WO_DPY, DPX = 0x00, P = 0x24
+03b8 : e8               [ 2]             inx                 ;; Imp,    X   = 0x01, P = 0x24
+03b9 : 9510             [ 4]             sta     DP,x        ;; WO_DPX, DPX = 0xAA, P = 0x24
+03bb : 4a               [ 2]             lsr     a           ;; Acc,    A   = 0x55, P = 0x24
+03bc : e8               [ 2]             inx                 ;; Imp,    X   = 0x02, P = 0x24
+03bd : 9510             [ 4]             sta     DP,x        ;; WO_DPX, DPY = 0x55, P = 0x24
+03bf : ca               [ 2]             dex                 ;; Imp,    X   = 0x01, P = 0x24
+03c0 : 1510             [ 4]             ora     DP,x        ;; RO_DPX, A   = 0xFF, P = 0xA4
+03c2 : 3510             [ 4]             and     DP,x        ;; RO_DPX, A   = 0xAA, P = 0xA4
+03c4 : 5510             [ 4]             eor     DP,x        ;; RO_DPX, A   = 0x00, P = 0x26
+03c6 : d0fe             [ 3]             bne     *           ;; Rel,    A   = 0x00, P = 0x26
+03c8 : 7410             [ 4]             stz     DP,x        ;; WO_DPX, DPX = 0x00, P = 0x26
+03ca : d510             [ 4]             cmp     DP,x        ;; RO_DPX, A   = 0x00, P = 0x27
+03cc : d0fe             [ 3]             bne     *           ;; Rel,    A   = 0x00, P = 0x27
+03ce : 90fe             [ 3]             bcc     *           ;; Rel,    A   = 0x00, P = 0x27
+03d0 : e8               [ 2]             inx                 ;; Imp,    X   = 0x02, P = 0x25
+03d1 : b410             [ 4]             ldy     DP,x        ;; RO_DPX, Y   = 0x55, P = 0x25
+03d3 : 98               [ 2]             tya                 ;; Imp,    A   = 0x55, P = 0x25
+03d4 : 0a               [ 2]             asl     a           ;; Acc,    A   = 0xAA, P = 0xA4
+03d5 : 3410             [ 4]             bit     DP,x        ;; RO_DPX, A   = 0xAA, M = 0x55, P = 0x66
+03d7 : 30fe             [ 3]             bmi     *           ;; Rel,    A   = 0xAA, P = 0x66
+03d9 : 50fe             [ 3]             bvc     *           ;; Rel,    A   = 0xAA, P = 0x66
+03db : d0fe             [ 3]             bne     *           ;; Rel,    A   = 0xAA, P = 0x66
+03dd : b8               [ 2]             clv                 ;; Imp,    A   = 0xAA, P = 0x26
+03de : 38               [ 2]             sec                 ;; Imp,    A   = 0xAA, P = 0x27
+03df : 7510             [ 4]             adc     DP,x        ;; RO_DPX, A   = 0x00, P = 0x27
+03e1 : 18               [ 2]             clc
+03e2 : f510             [ 4]             sbc     DP,x        ;; RO_DPX, A   = 0xAA, P = 0xA4
+03e4 : 10fe             [ 3]             bpl     *           ;; Rel,    A   = 0xAA, P = 0xA4
+03e6 : 70fe             [ 3]             bvs     *           ;; Rel,    A   = 0xAA, P = 0xA4
+03e8 : f0fe             [ 3]             beq     *           ;; Rel,    A   = 0xAA, P = 0xA4
+03ea : b0fe             [ 3]             bcs     *           ;; Rel,    A   = 0xAA, P = 0xA4
+                             ;;
+03ec : b50e             [ 4]             lda     DP-2,x      ;; RO_DPX, A   = 0x00, P = 0x26
+03ee : a8               [ 2]             tay                 ;; Imp,    Y   = 0x00, P = 0x26
+03ef : 9410             [ 4]             sty     DP,x        ;; WO_DPX, DPY = 0x00, P = 0x26
+                             ;;
+03f1 : b610             [ 4]             ldx     DP,y        ;; RO_DPY, X   = 0x00, P = 0x26
+03f3 : c8               [ 2]             iny                 ;; Imp,    Y   = 0x01, P = 0x24
+03f4 : 9610             [ 4]             stx     DP,y        ;; WO_DPY, DPX = 0x00, P = 0x24
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Absolute Address Instructions
                              ;;
-03ea : a924             [ 2]             lda     #$24        ;; Imm,    A    = 0x24, P = 0x67
-03ec : 48               [ 3]             pha                 ;; Imp,    A    = 0x24, P = 0x67
-03ed : 28               [ 4]             plp                 ;; Imp,    A    = 0x24, P = 0x24
-                             ;;
-03ee : 9c0802           [ 4]             stz     Abs         ;; WO_Abs, Abs  = 0x00, P = 0x24
-03f1 : 9c0902           [ 4]             stz     Abs+1       ;; WO_Abs, AbsX = 0x00, P = 0x24
-03f4 : 9c0a02           [ 4]             stz     Abs+2       ;; WO_Abs, AbsY = 0x00, P = 0x24
-                             ;;
-03f7 : a955             [ 2]             lda     #$55        ;; Imm,    A    = 0x55, P = 0x24
-03f9 : 8d0a02           [ 4]             sta     AbsY        ;; WO_Abs, AbsY = 0x55, P = 0x24
-03fc : 0a               [ 2]             asl     a           ;; Acc,    A    = 0xAA, P = 0xA4
-03fd : ae0902           [ 4]             ldx     AbsX        ;; RO_Abs, X    = 0x00, P = 0x26
-0400 : ac0a02           [ 4]             ldy     AbsY        ;; RO_Abs, Y    = 0x55, P = 0x26
+03f6 : a924             [ 2]             lda     #$24        ;; Imm,    A    = 0x24, P = 0x67
+03f8 : 48               [ 3]             pha                 ;; Imp,    A    = 0x24, P = 0x67
+03f9 : 28               [ 4]             plp                 ;; Imp,    A    = 0x24, P = 0x24
                              ;;
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   10
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-0403 : 8d0902           [ 4]             sta     AbsX        ;; WO_Abs, AbsX = 0xAA, P = 0x24
-0406 : 4a               [ 2]             lsr     a           ;; Acc,    A    = 0x55, P = 0x24
-0407 : 8d0a02           [ 4]             sta     AbsY        ;; WO_Abs, AbsY = 0x55, P = 0x24
+03fa : 9c0802           [ 4]             stz     Abs         ;; WO_Abs, Abs  = 0x00, P = 0x24
+03fd : 9c0902           [ 4]             stz     Abs+1       ;; WO_Abs, AbsX = 0x00, P = 0x24
+0400 : 9c0a02           [ 4]             stz     Abs+2       ;; WO_Abs, AbsY = 0x00, P = 0x24
                              ;;
-040a : 0d0902           [ 4]             ora     AbsX        ;; RO_Abs, A    = 0xFF, P = 0xA4
-040d : 2d0902           [ 4]             and     AbsX        ;; RO_Abs, A    = 0xAA, P = 0xA4
-0410 : 4d0902           [ 4]             eor     AbsX        ;; RO_Abs, A    = 0x00, P = 0x26
-0413 : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0x00, P = 0x26
-0415 : 9c0902           [ 4]             stz     AbsX        ;; WO_Abs, AbsX = 0x00, P = 0x26
-0418 : cd0902           [ 4]             cmp     AbsX        ;; RO_Abs, A    = 0x00, P = 0x27
-041b : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0x00, P = 0x27
-041d : 90fe             [ 3]             bcc     *           ;; Rel,    A    = 0x00, P = 0x27
-041f : ac0a02           [ 4]             ldy     AbsY        ;; RO_Abs, Y    = 0x55, P = 0x25
-0422 : 98               [ 2]             tya                 ;; Imp,    A    = 0x55, P = 0x25
-0423 : 0a               [ 2]             asl     a           ;; Acc,    A    = 0xAA, P = 0xA4
-0424 : 2c0a02           [ 4]             bit     AbsY        ;; RO_Abs, A    = 0xAA, M = 0x55, P = 0x66
-0427 : 30fe             [ 3]             bmi     *           ;; Rel,    A    = 0xAA, P = 0x66
-0429 : 50fe             [ 3]             bvc     *           ;; Rel,    A    = 0xAA, P = 0x66
-042b : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0xAA, P = 0x66
-042d : b8               [ 2]             clv                 ;; Imp,    A    = 0xAA, P = 0x26
-042e : 38               [ 2]             sec                 ;; Imp,    A    = 0xAA, P = 0x27
-042f : 6d0a02           [ 4]             adc     AbsY        ;; RO_Abs, A    = 0x00, P = 0x27
-0432 : 18               [ 2]             clc
-0433 : ed0a02           [ 4]             sbc     AbsY        ;; RO_Abs, A    = 0xAA, P = 0xA4
-0436 : 10fe             [ 3]             bpl     *           ;; Rel,    A    = 0xAA, P = 0xA4
-0438 : 70fe             [ 3]             bvs     *           ;; Rel,    A    = 0xAA, P = 0xA4
-043a : f0fe             [ 3]             beq     *           ;; Rel,    A    = 0xAA, P = 0xA4
-043c : b0fe             [ 3]             bcs     *           ;; Rel,    A    = 0xAA, P = 0xA4
+0403 : a955             [ 2]             lda     #$55        ;; Imm,    A    = 0x55, P = 0x24
+0405 : 8d0a02           [ 4]             sta     AbsY        ;; WO_Abs, AbsY = 0x55, P = 0x24
+0408 : 0a               [ 2]             asl     a           ;; Acc,    A    = 0xAA, P = 0xA4
+0409 : ae0902           [ 4]             ldx     AbsX        ;; RO_Abs, X    = 0x00, P = 0x26
+040c : ac0a02           [ 4]             ldy     AbsY        ;; RO_Abs, Y    = 0x55, P = 0x26
                              ;;
-043e : ad0802           [ 4]             lda     Abs         ;; RO_Abs, A    = 0x00, P = 0x26
-0441 : a8               [ 2]             tay                 ;; Imp,    Y    = 0x00, P = 0x26
-0442 : 8c0a02           [ 4]             sty     AbsY        ;; WO_Abs, AbsY = 0x00, P = 0x26
-0445 : cc0802           [ 4]             cpy     Abs         ;; RO_Abs, Y = 0x00, Abs = 0x00, P = 0x26
-0448 : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0xAA, P = 0x66
+040f : 8d0902           [ 4]             sta     AbsX        ;; WO_Abs, AbsX = 0xAA, P = 0x24
+0412 : 4a               [ 2]             lsr     a           ;; Acc,    A    = 0x55, P = 0x24
+0413 : 8d0a02           [ 4]             sta     AbsY        ;; WO_Abs, AbsY = 0x55, P = 0x24
                              ;;
-044a : ae0802           [ 4]             ldx     Abs         ;; RO_Abs, X    = 0x00, P = 0x26
-044d : 8e0902           [ 4]             stx     AbsX        ;; WO_Abs, AbsX = 0x00, P = 0x26
-0450 : ec0802           [ 4]             cpx     Abs         ;; RO_Abs, X = 0x00, Abs = 0x00, P = 0x26
-0453 : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0xAA, P = 0x26
+0416 : 0d0902           [ 4]             ora     AbsX        ;; RO_Abs, A    = 0xFF, P = 0xA4
+0419 : 2d0902           [ 4]             and     AbsX        ;; RO_Abs, A    = 0xAA, P = 0xA4
+041c : 4d0902           [ 4]             eor     AbsX        ;; RO_Abs, A    = 0x00, P = 0x26
+041f : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0x00, P = 0x26
+0421 : 9c0902           [ 4]             stz     AbsX        ;; WO_Abs, AbsX = 0x00, P = 0x26
+0424 : cd0902           [ 4]             cmp     AbsX        ;; RO_Abs, A    = 0x00, P = 0x27
+0427 : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0x00, P = 0x27
+0429 : 90fe             [ 3]             bcc     *           ;; Rel,    A    = 0x00, P = 0x27
+042b : ac0a02           [ 4]             ldy     AbsY        ;; RO_Abs, Y    = 0x55, P = 0x25
+042e : 98               [ 2]             tya                 ;; Imp,    A    = 0x55, P = 0x25
+042f : 0a               [ 2]             asl     a           ;; Acc,    A    = 0xAA, P = 0xA4
+0430 : 2c0a02           [ 4]             bit     AbsY        ;; RO_Abs, A    = 0xAA, M = 0x55, P = 0x66
+0433 : 30fe             [ 3]             bmi     *           ;; Rel,    A    = 0xAA, P = 0x66
+0435 : 50fe             [ 3]             bvc     *           ;; Rel,    A    = 0xAA, P = 0x66
+0437 : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0xAA, P = 0x66
+0439 : b8               [ 2]             clv                 ;; Imp,    A    = 0xAA, P = 0x26
+043a : 38               [ 2]             sec                 ;; Imp,    A    = 0xAA, P = 0x27
+043b : 6d0a02           [ 4]             adc     AbsY        ;; RO_Abs, A    = 0x00, P = 0x27
+043e : 18               [ 2]             clc
+043f : ed0a02           [ 4]             sbc     AbsY        ;; RO_Abs, A    = 0xAA, P = 0xA4
+0442 : 10fe             [ 3]             bpl     *           ;; Rel,    A    = 0xAA, P = 0xA4
+0444 : 70fe             [ 3]             bvs     *           ;; Rel,    A    = 0xAA, P = 0xA4
+0446 : f0fe             [ 3]             beq     *           ;; Rel,    A    = 0xAA, P = 0xA4
+0448 : b0fe             [ 3]             bcs     *           ;; Rel,    A    = 0xAA, P = 0xA4
+                             ;;
+044a : ad0802           [ 4]             lda     Abs         ;; RO_Abs, A    = 0x00, P = 0x26
+044d : a8               [ 2]             tay                 ;; Imp,    Y    = 0x00, P = 0x26
+044e : 8c0a02           [ 4]             sty     AbsY        ;; WO_Abs, AbsY = 0x00, P = 0x26
+0451 : cc0802           [ 4]             cpy     Abs         ;; RO_Abs, Y = 0x00, Abs = 0x00, P = 0x26
+0454 : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0xAA, P = 0x66
+                             ;;
+0456 : ae0802           [ 4]             ldx     Abs         ;; RO_Abs, X    = 0x00, P = 0x26
+0459 : 8e0902           [ 4]             stx     AbsX        ;; WO_Abs, AbsX = 0x00, P = 0x26
+045c : ec0802           [ 4]             cpx     Abs         ;; RO_Abs, X = 0x00, Abs = 0x00, P = 0x26
+045f : d0fe             [ 3]             bne     *           ;; Rel,    A    = 0xAA, P = 0x26
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Absolute Indexed Address Instructions
                              ;;
-0455 : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0x67
-0457 : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0x67
-0458 : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
-                             ;;
-0459 : 9c0802           [ 4]             stz     Abs         ;; Abs,     Abs  = 0x00, P = 0x24
-045c : 9c0902           [ 4]             stz     Abs+1       ;; Abs,     AbsX = 0x00, P = 0x24
-045f : 9c0a02           [ 4]             stz     Abs+2       ;; Abs,     AbsY = 0x00, P = 0x24
-                             ;;
-0462 : a955             [ 2]             lda     #$55        ;; Imm,     A    = 0x55, P = 0x24
-0464 : 8d0a02           [ 4]             sta     AbsY        ;; Abs,     AbsY = 0x55, P = 0x24
-0467 : 0a               [ 2]             asl     a           ;; Acc,     A    = 0xAA, P = 0xA4
+0461 : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0x67
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   11
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-0468 : ae0902           [ 4]             ldx     AbsX        ;; Abs,     X    = 0x00, P = 0x26
-046b : ac0a02           [ 4]             ldy     AbsY        ;; Abs,     Y    = 0x55, P = 0x26
+0463 : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0x67
+0464 : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
                              ;;
-046e : e8               [ 2]             inx                 ;; Imp,     X    = 0x01, P = 0x24
-046f : 9d0802           [ 5]             sta     Abs,x       ;; WO_AbsX, AbsX = 0xAA, P = 0x24
-0472 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
-0473 : e8               [ 2]             inx                 ;; Imp,     X    = 0x02, P = 0x24
-0474 : 9d0802           [ 5]             sta     Abs,x       ;; WO_AbsX, AbsX = 0x55, P = 0x24
-0477 : ca               [ 2]             dex                 ;; Imp,     X    = 0x01, P = 0x24
-0478 : 1d0802           [ 4]             ora     Abs,x       ;; RO_AbsX, A    = 0xFF, P = 0xA4
-047b : 3d0802           [ 4]             and     Abs,x       ;; RO_AbsX, A    = 0xAA, P = 0xA4
-047e : 5d0802           [ 4]             eor     Abs,x       ;; RO_AbsX, A    = 0x00, P = 0x26
-0481 : d0fe             [ 3]             bne     *           ;; Rel,     A    = 0x00, P = 0x26
-0483 : 9e0802           [ 5]             stz     Abs,x       ;; WO_AbsX, AbsX = 0x00, P = 0x26
-0486 : dd0802           [ 4]             cmp     Abs,x       ;; RO_AbsX, A    = 0x00, P = 0x27
-0489 : d0fe             [ 3]             bne     *           ;; Rel,     A    = 0x00, P = 0x27
-048b : 90fe             [ 3]             bcc     *           ;; Rel,     A    = 0x00, P = 0x27
-048d : e8               [ 2]             inx                 ;; Imp,     X    = 0x02, P = 0x25
-048e : bc0802           [ 4]             ldy     Abs,x       ;; RO_AbsX, Y    = 0x55, P = 0x25
-0491 : 98               [ 2]             tya                 ;; Imp,     A    = 0x55, P = 0x25
-0492 : 0a               [ 2]             asl     a           ;; Acc,     A    = 0xAA, P = 0xA4
-0493 : 3c0802           [ 4]             bit     Abs,x       ;; RO_AbsX, A    = 0xAA, M = 0x55, P = 0x66
-0496 : 30fe             [ 3]             bmi     *           ;; Rel,     A    = 0xAA, P = 0x66
-0498 : 50fe             [ 3]             bvc     *           ;; Rel,     A    = 0xAA, P = 0x66
-049a : d0fe             [ 3]             bne     *           ;; Rel,     A    = 0xAA, P = 0x66
-049c : b8               [ 2]             clv                 ;; Imp,     A    = 0xAA, P = 0x26
-049d : 38               [ 2]             sec                 ;; Imp,     A    = 0xAA, P = 0x27
-049e : 7d0802           [ 4]             adc     Abs,x       ;; RO_AbsX, A    = 0x00, P = 0x27
-04a1 : 18               [ 2]             clc
-04a2 : fd0802           [ 4]             sbc     Abs,x       ;; RO_AbsX, A    = 0xAA, P = 0xA4
-04a5 : 10fe             [ 3]             bpl     *           ;; Rel,     A    = 0xAA, P = 0xA4
-04a7 : 70fe             [ 3]             bvs     *           ;; Rel,     A    = 0xAA, P = 0xA4
-04a9 : f0fe             [ 3]             beq     *           ;; Rel,     A    = 0xAA, P = 0xA4
-04ab : b0fe             [ 3]             bcs     *           ;; Rel,     A    = 0xAA, P = 0xA4
+0465 : 9c0802           [ 4]             stz     Abs         ;; Abs,     Abs  = 0x00, P = 0x24
+0468 : 9c0902           [ 4]             stz     Abs+1       ;; Abs,     AbsX = 0x00, P = 0x24
+046b : 9c0a02           [ 4]             stz     Abs+2       ;; Abs,     AbsY = 0x00, P = 0x24
                              ;;
-04ad : bd0602           [ 4]             lda     Abs-2,x     ;; RO_AbsX, A    = 0x00, P = 0x26
-04b0 : a8               [ 2]             tay                 ;; Imp,     Y    = 0x00, P = 0x26
-04b1 : 8c0a02           [ 4]             sty     AbsY        ;; WO_Abs,  AbsY = 0x00, P = 0x26
+046e : a955             [ 2]             lda     #$55        ;; Imm,     A    = 0x55, P = 0x24
+0470 : 8d0a02           [ 4]             sta     AbsY        ;; Abs,     AbsY = 0x55, P = 0x24
+0473 : 0a               [ 2]             asl     a           ;; Acc,     A    = 0xAA, P = 0xA4
+0474 : ae0902           [ 4]             ldx     AbsX        ;; Abs,     X    = 0x00, P = 0x26
+0477 : ac0a02           [ 4]             ldy     AbsY        ;; Abs,     Y    = 0x55, P = 0x26
                              ;;
-04b4 : be0802           [ 4]             ldx     Abs,y       ;; RO_AbsY, X    = 0x00, P = 0x26
-04b7 : 8e0902           [ 4]             stx     AbsX        ;; WO_Abs,  AbsX = 0x00, P = 0x24
+047a : e8               [ 2]             inx                 ;; Imp,     X    = 0x01, P = 0x24
+047b : 9d0802           [ 5]             sta     Abs,x       ;; WO_AbsX, AbsX = 0xAA, P = 0x24
+047e : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+047f : e8               [ 2]             inx                 ;; Imp,     X    = 0x02, P = 0x24
+0480 : 9d0802           [ 5]             sta     Abs,x       ;; WO_AbsX, AbsX = 0x55, P = 0x24
+0483 : ca               [ 2]             dex                 ;; Imp,     X    = 0x01, P = 0x24
+0484 : 1d0802           [ 4]             ora     Abs,x       ;; RO_AbsX, A    = 0xFF, P = 0xA4
+0487 : 3d0802           [ 4]             and     Abs,x       ;; RO_AbsX, A    = 0xAA, P = 0xA4
+048a : 5d0802           [ 4]             eor     Abs,x       ;; RO_AbsX, A    = 0x00, P = 0x26
+048d : d0fe             [ 3]             bne     *           ;; Rel,     A    = 0x00, P = 0x26
+048f : 9e0802           [ 5]             stz     Abs,x       ;; WO_AbsX, AbsX = 0x00, P = 0x26
+0492 : dd0802           [ 4]             cmp     Abs,x       ;; RO_AbsX, A    = 0x00, P = 0x27
+0495 : d0fe             [ 3]             bne     *           ;; Rel,     A    = 0x00, P = 0x27
+0497 : 90fe             [ 3]             bcc     *           ;; Rel,     A    = 0x00, P = 0x27
+0499 : e8               [ 2]             inx                 ;; Imp,     X    = 0x02, P = 0x25
+049a : bc0802           [ 4]             ldy     Abs,x       ;; RO_AbsX, Y    = 0x55, P = 0x25
+049d : 98               [ 2]             tya                 ;; Imp,     A    = 0x55, P = 0x25
+049e : 0a               [ 2]             asl     a           ;; Acc,     A    = 0xAA, P = 0xA4
+049f : 3c0802           [ 4]             bit     Abs,x       ;; RO_AbsX, A    = 0xAA, M = 0x55, P = 0x66
+04a2 : 30fe             [ 3]             bmi     *           ;; Rel,     A    = 0xAA, P = 0x66
+04a4 : 50fe             [ 3]             bvc     *           ;; Rel,     A    = 0xAA, P = 0x66
+04a6 : d0fe             [ 3]             bne     *           ;; Rel,     A    = 0xAA, P = 0x66
+04a8 : b8               [ 2]             clv                 ;; Imp,     A    = 0xAA, P = 0x26
+04a9 : 38               [ 2]             sec                 ;; Imp,     A    = 0xAA, P = 0x27
+04aa : 7d0802           [ 4]             adc     Abs,x       ;; RO_AbsX, A    = 0x00, P = 0x27
+04ad : 18               [ 2]             clc
+04ae : fd0802           [ 4]             sbc     Abs,x       ;; RO_AbsX, A    = 0xAA, P = 0xA4
+04b1 : 10fe             [ 3]             bpl     *           ;; Rel,     A    = 0xAA, P = 0xA4
+04b3 : 70fe             [ 3]             bvs     *           ;; Rel,     A    = 0xAA, P = 0xA4
+04b5 : f0fe             [ 3]             beq     *           ;; Rel,     A    = 0xAA, P = 0xA4
+04b7 : b0fe             [ 3]             bcs     *           ;; Rel,     A    = 0xAA, P = 0xA4
                              ;;
-04ba : a002             [ 2]             ldy     #$02        ;; Imm,     Y    = 0x02, P = 0x24
-04bc : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
+04b9 : bd0602           [ 4]             lda     Abs-2,x     ;; RO_AbsX, A    = 0x00, P = 0x26
+04bc : a8               [ 2]             tay                 ;; Imp,     Y    = 0x00, P = 0x26
+04bd : 8c0a02           [ 4]             sty     AbsY        ;; WO_Abs,  AbsY = 0x00, P = 0x26
                              ;;
-04be : 990802           [ 5]             sta     Abs,y       ;; WO_AbsY, AbsY = 0xAA, P = 0xA4
-04c1 : 590802           [ 4]             eor     Abs,y       ;; RO_AbsY, A    = 0x00, P = 0x26
-04c4 : b90802           [ 4]             lda     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0xA4
-04c7 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
-04c8 : 190802           [ 4]             ora     Abs,y       ;; RO_AbsY, A    = 0xFF, P = 0xA4
-04cb : 390802           [ 4]             and     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0xA4
-04ce : d90802           [ 4]             cmp     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0x27
+04c0 : be0802           [ 4]             ldx     Abs,y       ;; RO_AbsY, X    = 0x00, P = 0x26
+04c3 : 8e0902           [ 4]             stx     AbsX        ;; WO_Abs,  AbsX = 0x00, P = 0x24
                              ;;
-04d1 : f90802           [ 4]             sbc     Abs,y       ;; RO_AbsY, A    = 0x00, P = 0x27
-04d4 : 18               [ 2]             clc                 ;; Imp,     A    = 0x00, P = 0x26
+04c6 : a002             [ 2]             ldy     #$02        ;; Imm,     Y    = 0x02, P = 0x24
+04c8 : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
+                             ;;
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   12
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-04d5 : 790802           [ 4]             adc     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0xA4
+04ca : 990802           [ 5]             sta     Abs,y       ;; WO_AbsY, AbsY = 0xAA, P = 0xA4
+04cd : 590802           [ 4]             eor     Abs,y       ;; RO_AbsY, A    = 0x00, P = 0x26
+04d0 : b90802           [ 4]             lda     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0xA4
+04d3 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+04d4 : 190802           [ 4]             ora     Abs,y       ;; RO_AbsY, A    = 0xFF, P = 0xA4
+04d7 : 390802           [ 4]             and     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0xA4
+04da : d90802           [ 4]             cmp     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0x27
+                             ;;
+04dd : f90802           [ 4]             sbc     Abs,y       ;; RO_AbsY, A    = 0x00, P = 0x27
+04e0 : 18               [ 2]             clc                 ;; Imp,     A    = 0x00, P = 0x26
+04e1 : 790802           [ 4]             adc     Abs,y       ;; RO_AbsY, A    = 0xAA, P = 0xA4
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Direct/Zero Page RMW Instructions
                              ;;
-04d8 : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
-04da : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0xXX
-04db : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
+04e4 : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
+04e6 : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0xXX
+04e7 : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
                              ;;
-04dc : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
-04de : 8510             [ 3]             sta     DP          ;; WO_DP,   DP   = 0xAA, P = 0xA4
+04e8 : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
+04ea : 8510             [ 3]             sta     DP          ;; WO_DP,   DP   = 0xAA, P = 0xA4
                              ;;
-04e0 : 0610             [ 5]             asl     DP          ;; RMW_DP,  DP   = 0x54, P = 0x25
-04e2 : 2610             [ 5]             rol     DP          ;; RMW_DP,  DP   = 0xA9, P = 0xA4
-04e4 : 4610             [ 5]             lsr     DP          ;; RMW_DP,  DP   = 0x54, P = 0x25
-04e6 : 6610             [ 5]             ror     DP          ;; RMW_DP,  DP   = 0xAA, P = 0xA4
+04ec : 0610             [ 5]             asl     DP          ;; RMW_DP,  DP   = 0x54, P = 0x25
+04ee : 2610             [ 5]             rol     DP          ;; RMW_DP,  DP   = 0xA9, P = 0xA4
+04f0 : 4610             [ 5]             lsr     DP          ;; RMW_DP,  DP   = 0x54, P = 0x25
+04f2 : 6610             [ 5]             ror     DP          ;; RMW_DP,  DP   = 0xAA, P = 0xA4
                              ;;
-04e8 : c610             [ 5]             dec     DP          ;; RMW_DP,  DP   = 0xA9, P = 0xA4
-04ea : e610             [ 5]             inc     DP          ;; RMW_DP,  DP   = 0xAA, P = 0xA4
+04f4 : c610             [ 5]             dec     DP          ;; RMW_DP,  DP   = 0xA9, P = 0xA4
+04f6 : e610             [ 5]             inc     DP          ;; RMW_DP,  DP   = 0xAA, P = 0xA4
                              ;;
-04ec : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+04f8 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
                              ;;
-04ed : 0410             [ 2]             tsb     DP          ;; RMW_DP,  DP   = 0xFF, P = 0x26
-04ef : 1410             [ 2]             trb     DP          ;; RMW_DP,  DP   = 0xAA, P = 0x24
+04f9 : 0410             [ 2]             tsb     DP          ;; RMW_DP,  DP   = 0xFF, P = 0x26
+04fb : 1410             [ 2]             trb     DP          ;; RMW_DP,  DP   = 0xAA, P = 0x24
                              ;;
-04f1 : a201             [ 2]             ldx     #$01        ;; Imm,     X    = 0x01, P = 0x24
-04f3 : 0a               [ 2]             asl     a           ;; Acc,     A    = 0xAA, P = 0x24
-04f4 : 9510             [ 4]             sta     DP,x        ;; WO_DPX,  DPX  = 0xAA, P = 0x24
+04fd : a201             [ 2]             ldx     #$01        ;; Imm,     X    = 0x01, P = 0x24
+04ff : 0a               [ 2]             asl     a           ;; Acc,     A    = 0xAA, P = 0x24
+0500 : 9510             [ 4]             sta     DP,x        ;; WO_DPX,  DPX  = 0xAA, P = 0x24
                              ;;
-04f6 : 1610             [ 6]             asl     DP,x        ;; RMW_DPX, DPX  = 0x54, P = 0x25
-04f8 : 3610             [ 6]             rol     DP,x        ;; RMW_DPX, DPX  = 0xA9, P = 0xA4
-04fa : 5610             [ 6]             lsr     DP,x        ;; RMW_DPX, DPX  = 0x54, P = 0x25
-04fc : 7610             [ 6]             ror     DP,x        ;; RMW_DPX, DPX  = 0xAA, P = 0xA4
+0502 : 1610             [ 6]             asl     DP,x        ;; RMW_DPX, DPX  = 0x54, P = 0x25
+0504 : 3610             [ 6]             rol     DP,x        ;; RMW_DPX, DPX  = 0xA9, P = 0xA4
+0506 : 5610             [ 6]             lsr     DP,x        ;; RMW_DPX, DPX  = 0x54, P = 0x25
+0508 : 7610             [ 6]             ror     DP,x        ;; RMW_DPX, DPX  = 0xAA, P = 0xA4
                              ;;
-04fe : d610             [ 6]             dec     DP,x        ;; RMW_DPX, DPX  = 0xA9, P = 0xA4
-0500 : f610             [ 6]             inc     DP,x        ;; RMW_DPX, DPX  = 0xAA, P = 0xA4
+050a : d610             [ 6]             dec     DP,x        ;; RMW_DPX, DPX  = 0xA9, P = 0xA4
+050c : f610             [ 6]             inc     DP,x        ;; RMW_DPX, DPX  = 0xAA, P = 0xA4
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Absolute Address RMW Instructions
                              ;;
-0502 : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
-0504 : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0xXX
-0505 : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
-                             ;;
-0506 : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
-0508 : 8d0802           [ 4]             sta     Abs         ;; WO_Abs,  Abs  = 0xAA, P = 0xA4
-                             ;;
-050b : 0e0802           [ 6]             asl     Abs         ;; RMW_Abs, Abs  = 0x54, P = 0x25
-050e : 2e0802           [ 6]             rol     Abs         ;; RMW_Abs, Abs  = 0xA9, P = 0xA4
-0511 : 4e0802           [ 6]             lsr     Abs         ;; RMW_Abs, Abs  = 0x54, P = 0x25
-0514 : 6e0802           [ 6]             ror     Abs         ;; RMW_Abs, Abs  = 0xAA, P = 0xA4
-                             ;;
-0517 : ce0802           [ 6]             dec     Abs         ;; RMW_Abs, Abs  = 0xA9, P = 0xA5
+050e : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
+0510 : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0xXX
+0511 : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   13
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-051a : ee0802           [ 6]             inc     Abs         ;; RMW_Abs, Abs  = 0xAA, P = 0xA4
                              ;;
-051d : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+0512 : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
+0514 : 8d0802           [ 4]             sta     Abs         ;; WO_Abs,  Abs  = 0xAA, P = 0xA4
                              ;;
-051e : 0c0802           [ 3]             tsb     Abs         ;; RMW_Abs, Abs  = 0xFF, P = 0x26
-0521 : 1c0802           [ 3]             trb     Abs         ;; RMW_Abs, Abs  = 0xAA, P = 0x24
+0517 : 0e0802           [ 6]             asl     Abs         ;; RMW_Abs, Abs  = 0x54, P = 0x25
+051a : 2e0802           [ 6]             rol     Abs         ;; RMW_Abs, Abs  = 0xA9, P = 0xA4
+051d : 4e0802           [ 6]             lsr     Abs         ;; RMW_Abs, Abs  = 0x54, P = 0x25
+0520 : 6e0802           [ 6]             ror     Abs         ;; RMW_Abs, Abs  = 0xAA, P = 0xA4
+                             ;;
+0523 : ce0802           [ 6]             dec     Abs         ;; RMW_Abs, Abs  = 0xA9, P = 0xA5
+0526 : ee0802           [ 6]             inc     Abs         ;; RMW_Abs, Abs  = 0xAA, P = 0xA4
+                             ;;
+0529 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+                             ;;
+052a : 0c0802           [ 3]             tsb     Abs         ;; RMW_Abs, Abs  = 0xFF, P = 0x26
+052d : 1c0802           [ 3]             trb     Abs         ;; RMW_Abs, Abs  = 0xAA, P = 0x24
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Absolute Address Indexed RMW Instructions
                              ;;
-0524 : a201             [ 2]             ldx     #$01        ;; Imm,      X    = 0x01, P = 0x24
-0526 : 0a               [ 2]             asl     a           ;; Acc,      A    = 0xAA, P = 0xA4
-0527 : 9d0802           [ 5]             sta     Abs,x       ;; WO_AbsX,  AbsX = 0xAA, P = 0xA4
+0530 : a201             [ 2]             ldx     #$01        ;; Imm,      X    = 0x01, P = 0x24
+0532 : 0a               [ 2]             asl     a           ;; Acc,      A    = 0xAA, P = 0xA4
+0533 : 9d0802           [ 5]             sta     Abs,x       ;; WO_AbsX,  AbsX = 0xAA, P = 0xA4
                              ;;
-052a : 1e0802           [ 6]             asl     Abs,x       ;; RMW_AbsX, AbsX = 0x54, P = 0x25
-052d : 3e0802           [ 6]             rol     Abs,x       ;; RMW_AbsX, AbsX = 0xA9, P = 0xA4
-0530 : 5e0802           [ 6]             lsr     Abs,x       ;; RMW_AbsX, AbsX = 0x54, P = 0x25
-0533 : 7e0802           [ 6]             ror     Abs,x       ;; RMW_AbsX, AbsX = 0xAA, P = 0xA4
+0536 : 1e0802           [ 6]             asl     Abs,x       ;; RMW_AbsX, AbsX = 0x54, P = 0x25
+0539 : 3e0802           [ 6]             rol     Abs,x       ;; RMW_AbsX, AbsX = 0xA9, P = 0xA4
+053c : 5e0802           [ 6]             lsr     Abs,x       ;; RMW_AbsX, AbsX = 0x54, P = 0x25
+053f : 7e0802           [ 6]             ror     Abs,x       ;; RMW_AbsX, AbsX = 0xAA, P = 0xA4
                              ;;
-0536 : de0802           [ 6]             dec     Abs,x       ;; RMW_AbsX, AbsX = 0xA9, P = 0xA4
-0539 : fe0802           [ 6]             inc     Abs,x       ;; RMW_AbsX, AbsX = 0xAA, P = 0xA4
+0542 : de0802           [ 6]             dec     Abs,x       ;; RMW_AbsX, AbsX = 0xA9, P = 0xA4
+0545 : fe0802           [ 6]             inc     Abs,x       ;; RMW_AbsX, AbsX = 0xAA, P = 0xA4
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Direct/Zero Page Indirect Instructions
                              ;;
-053c : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
-053e : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0xXX
-053f : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
+0548 : a924             [ 2]             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
+054a : 48               [ 3]             pha                 ;; Imp,     A    = 0x24, P = 0xXX
+054b : 28               [ 4]             plp                 ;; Imp,     A    = 0x24, P = 0x24
                              ;;
-0540 : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
-0542 : 8510             [ 3]             sta     DP          ;; WO_DP,   DP   = 0xAA, P = 0xA4
-0544 : a900             [ 2]             lda     #$00        ;; Imm,     A    = 0x00, P = 0x26
+054c : a9aa             [ 2]             lda     #$AA        ;; Imm,     A    = 0xAA, P = 0xA4
+054e : 8510             [ 3]             sta     DP          ;; WO_DP,   DP   = 0xAA, P = 0xA4
+0550 : a900             [ 2]             lda     #$00        ;; Imm,     A    = 0x00, P = 0x26
                              ;;
-0546 : 1208             [ 5]             ora     (pDPI)      ;; RO_DPI   A    = 0xAA, P = 0xA4
-0548 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
-0549 : 5208             [ 5]             eor     (pDPI)      ;; RO_DPI,  A    = 0xFF, P = 0xA4
-054b : 38               [ 2]             sec                 ;; Imp,     A    = 0xFF, P = 0xA5
-054c : 7208             [ 5]             adc     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0xA5
-054e : 18               [ 2]             clc                 ;; Imp,     A    = 0xAA, P = 0xA4
-054f : f208             [ 5]             sbc     (pDPI)      ;; RO_DPI,  A    = 0xFF, P = 0xA4
-0551 : 3208             [ 5]             and     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0xA4
-0553 : d208             [ 5]             cmp     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0x27
+0552 : 1208             [ 5]             ora     (pDPI)      ;; RO_DPI   A    = 0xAA, P = 0xA4
+0554 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+0555 : 5208             [ 5]             eor     (pDPI)      ;; RO_DPI,  A    = 0xFF, P = 0xA4
+0557 : 38               [ 2]             sec                 ;; Imp,     A    = 0xFF, P = 0xA5
+0558 : 7208             [ 5]             adc     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0xA5
+055a : 18               [ 2]             clc                 ;; Imp,     A    = 0xAA, P = 0xA4
+055b : f208             [ 5]             sbc     (pDPI)      ;; RO_DPI,  A    = 0xFF, P = 0xA4
+055d : 3208             [ 5]             and     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0xA4
+055f : d208             [ 5]             cmp     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0x27
                              ;;
-0555 : b208             [ 5]             lda     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0xA5
-0557 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
-0558 : 9208             [ 5]             sta     (pDPI)      ;; WO_DPI   DP   = 0x55, P = 0x24
-055a : c510             [ 3]             cmp     DP          ;; RO_DP    A    = 0x55, P = 0x27
+AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   14
+------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
+
+0561 : b208             [ 5]             lda     (pDPI)      ;; RO_DPI,  A    = 0xAA, P = 0xA5
+0563 : 4a               [ 2]             lsr     a           ;; Acc,     A    = 0x55, P = 0x24
+0564 : 9208             [ 5]             sta     (pDPI)      ;; WO_DPI   DP   = 0x55, P = 0x24
+0566 : c510             [ 3]             cmp     DP          ;; RO_DP    A    = 0x55, P = 0x27
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Direct/Zero Page Pre-Indexed Indirect Instructions
                              ;;
-055c : a202             [ 2]             ldx     #$02        ;; Imm,     X    = 0x02, P = 0x25
-AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   14
-------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
-
-055e : 0108             [ 6]             ora     (pDPI,x)    ;; RO_DPXI, A    = 0xFF, P = 0xA5
-0560 : 2108             [ 6]             and     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0xA5
-0562 : 4108             [ 6]             eor     (pDPI,x)    ;; RO_DPXI, A    = 0x00, P = 0x27
-0564 : 18               [ 2]             clc                 ;; Imp,     A    = 0x00, P = 0x26
-0565 : 6108             [ 6]             adc     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0xA4
-0567 : c108             [ 6]             cmp     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0x27
-0569 : e108             [ 6]             sbc     (pDPI,x)    ;; RO_DPXI, A    = 0x00, P = 0x27
-056b : a108             [ 6]             lda     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0xA5
-056d : a204             [ 2]             ldx     #$04        ;; Imm,     X    = 0x04, P = 0x25
-056f : 8108             [ 6]             sta     (pDPI,x)    ;; WO_DPXI, DPY  = 0xAA, P = 0x25
+0568 : a202             [ 2]             ldx     #$02        ;; Imm,     X    = 0x02, P = 0x25
+056a : 0108             [ 6]             ora     (pDPI,x)    ;; RO_DPXI, A    = 0xFF, P = 0xA5
+056c : 2108             [ 6]             and     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0xA5
+056e : 4108             [ 6]             eor     (pDPI,x)    ;; RO_DPXI, A    = 0x00, P = 0x27
+0570 : 18               [ 2]             clc                 ;; Imp,     A    = 0x00, P = 0x26
+0571 : 6108             [ 6]             adc     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0xA4
+0573 : c108             [ 6]             cmp     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0x27
+0575 : e108             [ 6]             sbc     (pDPI,x)    ;; RO_DPXI, A    = 0x00, P = 0x27
+0577 : a108             [ 6]             lda     (pDPI,x)    ;; RO_DPXI, A    = 0xAA, P = 0xA5
+0579 : a204             [ 2]             ldx     #$04        ;; Imm,     X    = 0x04, P = 0x25
+057b : 8108             [ 6]             sta     (pDPI,x)    ;; WO_DPXI, DPY  = 0xAA, P = 0x25
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  Direct/Zero Page Post-Indexed Indirect Instructions
                              ;;
-0571 : a000             [ 2]             ldy     #$00        ;; Imm,     Y    = 0x00, P = 0x27
+057d : a000             [ 2]             ldy     #$00        ;; Imm,     Y    = 0x00, P = 0x27
                              ;;
-0573 : 1108             [ 5]             ora     (pDPI),y    ;; RO_DPIY, A    = 0xFF, P = 0xA5
-0575 : c8               [ 2]             iny                 ;; Imp,     Y    = 0x01, P = 0x25
-0576 : 3108             [ 5]             and     (pDPI),y    ;; RO_DPIY, A    = 0xAA, P = 0xA5
-0578 : 88               [ 2]             dey                 ;; Imp,     Y    = 0x00, P = 0x27
-0579 : 5108             [ 5]             eor     (pDPI),y    ;; RO_DPIY, A    = 0xFF, P = 0xA5
-057b : 7108             [ 5]             adc     (pDPI),y    ;; RO_DPIY, A    = 0x55, P = 0x25
-057d : d108             [ 5]             cmp     (pDPI),y    ;; RO_DPIY, A    = 0x55, P = 0x27
-057f : f108             [ 5]             sbc     (pDPI),y    ;; RO_DPIY, A    = 0x00, P = 0x27
+057f : 1108             [ 5]             ora     (pDPI),y    ;; RO_DPIY, A    = 0xFF, P = 0xA5
 0581 : c8               [ 2]             iny                 ;; Imp,     Y    = 0x01, P = 0x25
-0582 : 9108             [ 5]             sta     (pDPI),y    ;; WO_DPIY, DPX  = 0x00, P = 0x25
-0584 : 88               [ 2]             dey                 ;; Imp,     Y    = 0x00, P = 0x26
-0585 : b108             [ 5]             lda     (pDPI),y    ;; RO_DPIY, A    = 0x55, P = 0x24
+0582 : 3108             [ 5]             and     (pDPI),y    ;; RO_DPIY, A    = 0xAA, P = 0xA5
+0584 : 88               [ 2]             dey                 ;; Imp,     Y    = 0x00, P = 0x27
+0585 : 5108             [ 5]             eor     (pDPI),y    ;; RO_DPIY, A    = 0xFF, P = 0xA5
+0587 : 7108             [ 5]             adc     (pDPI),y    ;; RO_DPIY, A    = 0x55, P = 0x25
+0589 : d108             [ 5]             cmp     (pDPI),y    ;; RO_DPIY, A    = 0x55, P = 0x27
+058b : f108             [ 5]             sbc     (pDPI),y    ;; RO_DPIY, A    = 0x00, P = 0x27
+058d : c8               [ 2]             iny                 ;; Imp,     Y    = 0x01, P = 0x25
+058e : 9108             [ 5]             sta     (pDPI),y    ;; WO_DPIY, DPX  = 0x00, P = 0x25
+0590 : 88               [ 2]             dey                 ;; Imp,     Y    = 0x00, P = 0x26
+0591 : b108             [ 5]             lda     (pDPI),y    ;; RO_DPIY, A    = 0x55, P = 0x24
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  All Unused Op-codes - Expected to execute in single cycle as NOPs.
                              ;;
                              
-0587 : 0222426282c2e2                    db      $02, $22, $42, $62, $82, $C2, $E2
-058e : 0313233343536373                  db      $03, $13, $23, $33, $43, $53, $63, $73
-0596 : 8393a3b3c3d3e3f3                  db      $83, $93, $A3, $B3, $C3, $D3, $E3, $F3
-059e : 4454d4f4                          db      $44, $54, $D4, $F4
-05a2 : 0717273747576777                  db      $07, $17, $27, $37, $47, $57, $67, $77  ;; RMBx dp
-05aa : 8797a7b7c7d7e7f7                  db      $87, $97, $A7, $B7, $C7, $D7, $E7, $F7  ;; SMBx dp
-05b2 : 0b1b2b3b4b5b6b7b                  db      $0B, $1B, $2B, $3B, $4B, $5B, $6B, $7B
-05ba : 8b9babbbcbdbebfb                  db      $8B, $9B, $AB, $BB, $CB, $DB, $EB, $FB
-05c2 : 5cdcfc                            db      $5C, $DC, $FC
-05c5 : 0f1f2f3f4f5f6f7f                  db      $0F, $1F, $2F, $3F, $4F, $5F, $6F, $7F  ;; BBRx dp,rel
-05cd : 8f9fafbfcfdfefff                  db      $8F, $9F, $AF, $BF, $CF, $DF, $EF, $FF  ;; BBSx dp,rel
+0593 : 0222426282c2e2                    db      $02, $22, $42, $62, $82, $C2, $E2
+059a : 0313233343536373                  db      $03, $13, $23, $33, $43, $53, $63, $73
+05a2 : 8393a3b3c3d3e3f3                  db      $83, $93, $A3, $B3, $C3, $D3, $E3, $F3
+05aa : 4454d4f4                          db      $44, $54, $D4, $F4
+05ae : 0717273747576777                  db      $07, $17, $27, $37, $47, $57, $67, $77  ;; RMBx dp
+05b6 : 8797a7b7c7d7e7f7                  db      $87, $97, $A7, $B7, $C7, $D7, $E7, $F7  ;; SMBx dp
+05be : 0b1b2b3b4b5b6b7b                  db      $0B, $1B, $2B, $3B, $4B, $5B, $6B, $7B
+                             ;;            db      $8B, $9B, $AB, $BB, $CB, $DB, $EB, $FB
+05c6 : 8b9babbbebfb                      db      $8B, $9B, $AB, $BB, $EB, $FB
+05cc : 5cdcfc                            db      $5C, $DC, $FC
+AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   15
+------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
+
+05cf : 0f1f2f3f4f5f6f7f                  db      $0F, $1F, $2F, $3F, $4F, $5F, $6F, $7F  ;; BBRx dp,rel
+05d7 : 8f9fafbfcfdfefff                  db      $8F, $9F, $AF, $BF, $CF, $DF, $EF, $FF  ;; BBSx dp,rel
                              ;;
                              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                              ;;
                              ;;  BRK Instruction
                              ;;
-05d5 : f8               [ 2]             sed                 ;; Set Decimal Mode Flag
-05d6 : 58               [ 2]             cli                 ;; Clear Interrupt Mask
+05df : f8               [ 2]             sed                 ;; Set Decimal Mode Flag
+05e0 : 58               [ 2]             cli                 ;; Clear Interrupt Mask
                              ;;
-05d7 : 00               [ 7]             brk                 ;; Single Cycle, Nxt
-AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   15
-------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
-
-05d8 : ff                                db      $FF         ;; Simple tag so ISR does not need to return PC
+05e1 : 00               [ 7]             brk                 ;; Single Cycle, Nxt
+05e2 : ff                                db      $FF         ;; Simple tag so ISR does not need to return PC
                              ;;
-05d9 : 78               [ 2]             sei
+05e3 : 78               [ 2]             sei
                              ;;
-05da : 18               [ 2] BCD_Tst:    clc
-05db : a999             [ 2]             lda     #$99
-05dd : 6901             [ 2]             adc     #$01
-05df : 90fe             [ 3]             bcc     *
-05e1 : d0fe             [ 3]             bne     *
-05e3 : e901             [ 2]             sbc     #$01
-05e5 : f0fe             [ 3]             beq     *
-05e7 : b0fe             [ 3]             bcs     *
-05e9 : c999             [ 2]             cmp     #$99
+05e4 : 18               [ 2] BCD_Tst:    clc
+05e5 : a999             [ 2]             lda     #$99
+05e7 : 6901             [ 2]             adc     #$01
+05e9 : 90fe             [ 3]             bcc     *
 05eb : d0fe             [ 3]             bne     *
-05ed : 18               [ 2]             clc
+05ed : e901             [ 2]             sbc     #$01
+05ef : f0fe             [ 3]             beq     *
+05f1 : b0fe             [ 3]             bcs     *
+05f3 : c999             [ 2]             cmp     #$99
+05f5 : d0fe             [ 3]             bne     *
+05f7 : 18               [ 2]             clc
                              ;;
-05ee : 9cfeff           [ 4]             stz     IRQ_On
+05f8 : 9cfeff           [ 4]             stz     IRQ_On
                              ;;
-05f1 : f8               [ 2] IRQ_Tst:    sed
-05f2 : 58               [ 2]             cli
-05f3 : ea               [ 2]             nop
-05f4 : 38               [ 2]             sec
-05f5 : a900             [ 2]             lda     #$00
-05f7 : d007             [ 4]             bne     IRQ_Tst3
-05f9 : e901             [ 2] IRQ_Tst2:   sbc     #$01
-05fb : 201302           [ 6]             jsr     Return
-05fe : 8003             [ 4]             bra     IRQ_Tst4
-0600 : 4cf905           [ 3] IRQ_Tst3:   jmp     IRQ_Tst2
-0603 : 78               [ 2] IRQ_Tst4:   sei
-0604 : d8               [ 2]             cld
+05fb : f8               [ 2] IRQ_Tst:    sed
+05fc : 58               [ 2]             cli
+05fd : ea               [ 2]             nop
+05fe : 38               [ 2]             sec
+05ff : a900             [ 2]             lda     #$00
+0601 : d007             [ 3]             bne     IRQ_Tst3
+0603 : e901             [ 2] IRQ_Tst2:   sbc     #$01
+0605 : 201302           [ 6]             jsr     Return
+0608 : 8003             [ 3]             bra     IRQ_Tst4
+060a : 4c0306           [ 3] IRQ_Tst3:   jmp     IRQ_Tst2
+060d : 78               [ 2] IRQ_Tst4:   sei
+060e : d8               [ 2]             cld
                              ;;
-0605 : 9cffff           [ 4]             stz     IRQ_Off
+060f : 9cffff           [ 4]             stz     IRQ_Off
                              ;;
                              ;;  Test zp,x and zp,y page zero wrapping
                              ;;
-0608 : a900             [ 2]             lda     #$00        ;; clear Accumulator
-060a : aa               [ 2]             tax                 ;; clear X
-060b : a8               [ 2]             tay                 ;; clear Y
-060c : e8               [ 2]             inx                 ;; increment X to test first index operation
-060d : c8               [ 2]             iny                 ;; increment Y twice to force it to point to
-060e : c8               [ 2]             iny                 ;; wrapped negative of the wrapped pointer.
+0612 : a900             [ 2]             lda     #$00        ;; clear Accumulator
+0614 : aa               [ 2]             tax                 ;; clear X
+0615 : a8               [ 2]             tay                 ;; clear Y
+0616 : e8               [ 2]             inx                 ;; increment X to test first index operation
+0617 : c8               [ 2]             iny                 ;; increment Y twice to force it to point to
+0618 : c8               [ 2]             iny                 ;; wrapped negative of the wrapped pointer.
                              ;;
-060f : 18               [ 2]             clc                 ;; clear carry before summation
-0610 : b5fe             [ 4]             lda     $FE,x       ;; load low byte of the
-0612 : 79ffff           [ 4]             adc     $FFFF,y     ;; add low bytes of Return and -Return
-                             ;;
-0615 : d0fe             [ 3]             bne     *           ;; halt here if sum is not zero
-                             ;;
-0617 : e8               [ 2]             inx                 ;; point to wrapped high bytes
-0618 : c8               [ 2]             iny
-0619 : b5fe             [ 4]             lda     $FE,x       ;; load high byte of Return
-061b : 79ffff           [ 4]             adc     $FFFF,y     ;; add high bytes of Return and -Return
-                             ;;
-061e : d0fe             [ 3]             bne     *           ;; halt here if the sum is not zero
-                             ;;
+0619 : 18               [ 2]             clc                 ;; clear carry before summation
+061a : b5fe             [ 4]             lda     $FE,x       ;; load low byte of the
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   16
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
-0620 : 88               [ 2]             dey                     ;; point back to lsb
-0621 : b6ff             [ 4]             ldx     $ff,y           ;; load lsb of -Return value
-0623 : e0ed             [ 2]             cpx     #(lo -Return)   ;; compare
+061c : 79ffff           [ 4]             adc     $FFFF,y     ;; add low bytes of Return and -Return
                              ;;
-0625 : d0fe             [ 3]             bne     *               ;; halt here if the values are not equal
+061f : d0fe             [ 3]             bne     *           ;; halt here if sum is not zero
                              ;;
-0627 : 8a               [ 2]             txa                     ;; complement value and store back
-0628 : 49ff             [ 2]             eor     #$ff            ;; pointer will point to location Return-1
-062a : aa               [ 2]             tax                     ;; because of 1's complement math
-062b : 96ff             [ 4]             stx     $ff,y
+0621 : e8               [ 2]             inx                 ;; point to wrapped high bytes
+0622 : c8               [ 2]             iny
+0623 : b5fe             [ 4]             lda     $FE,x       ;; load high byte of Return
+0625 : 79ffff           [ 4]             adc     $FFFF,y     ;; add high bytes of Return and -Return
                              ;;
-062d : c8               [ 2]             iny                     ;; point to msb
-062e : b6ff             [ 4]             ldx     $ff,y           ;; load msb of -Return value
-0630 : e0fd             [ 2]             cpx     #(hi -Return)   ;; compare
+0628 : d0fe             [ 3]             bne     *           ;; halt here if the sum is not zero
                              ;;
-0632 : d0fe             [ 3]             bne     *               ;; halt here if the values are not equal
+062a : 88               [ 2]             dey                     ;; point back to lsb
+062b : b6ff             [ 4]             ldx     $ff,y           ;; load lsb of -Return value
+062d : e0ed             [ 2]             cpx     #(lo -Return)   ;; compare
                              ;;
-0634 : 8a               [ 2]             txa                     ;; complement value and store back
-0635 : 49ff             [ 2]             eor     #$ff            ;; pointer will point to location Return-1
-0637 : aa               [ 2]             tax                     ;; because of 1's complement math
-0638 : 96ff             [ 4]             stx     $ff,y
+062f : d0fe             [ 3]             bne     *               ;; halt here if the values are not equal
+                             ;;
+0631 : 8a               [ 2]             txa                     ;; complement value and store back
+0632 : 49ff             [ 2]             eor     #$ff            ;; pointer will point to location Return-1
+0634 : aa               [ 2]             tax                     ;; because of 1's complement math
+0635 : 96ff             [ 4]             stx     $ff,y
+                             ;;
+0637 : c8               [ 2]             iny                     ;; point to msb
+0638 : b6ff             [ 4]             ldx     $ff,y           ;; load msb of -Return value
+063a : e0fd             [ 2]             cpx     #(hi -Return)   ;; compare
+                             ;;
+063c : d0fe             [ 3]             bne     *               ;; halt here if the values are not equal
+                             ;;
+063e : 8a               [ 2]             txa                     ;; complement value and store back
+063f : 49ff             [ 2]             eor     #$ff            ;; pointer will point to location Return-1
+0641 : aa               [ 2]             tax                     ;; because of 1's complement math
+0642 : 96ff             [ 4]             stx     $ff,y
                              ;;
                              ;;  Test (dp), (dp,x), and (dp,y) address mode page 0 wrapping
                              ;;
-063a : b2ff             [ 5]             lda     ($ff)           ;; load value stored in Return
-063c : a001             [ 2]             ldy     #$01            ;; ptr stored at $0001 points to Return-1
-063e : d101             [ 5]             cmp     ($01),y         ;; compare
+0644 : b2ff             [ 5]             lda     ($ff)           ;; load value stored in Return
+0646 : a001             [ 2]             ldy     #$01            ;; ptr stored at $0001 points to Return-1
+0648 : d101             [ 5]             cmp     ($01),y         ;; compare
                              ;;
-0640 : d0fe             [ 3]             bne     *               ;; halt here if the *($ff) <> *(*($01)+1)
+064a : d0fe             [ 3]             bne     *               ;; halt here if the *($ff) <> *(*($01)+1)
                              ;;
-0642 : a202             [ 2]             ldx     #$02            ;; increment pointer at $0001
-0644 : 18               [ 2]             clc
-0645 : b5ff             [ 4]             lda     $FF,x           ;; load lsb from $0001
-0647 : 6901             [ 2]             adc     #$01            ;; increment
-0649 : 95ff             [ 4]             sta     $FF,x           ;; store lsb
-064b : e8               [ 2]             inx                     ;; point to msb 
-064c : b5ff             [ 4]             lda     $FF,x           ;; load lsb from $0002
-064e : 6900             [ 2]             adc     #$00            ;; increment msb if carry out of lsb
-0650 : 95ff             [ 4]             sta     $FF,x
+064c : a202             [ 2]             ldx     #$02            ;; increment pointer at $0001
+064e : 18               [ 2]             clc
+064f : b5ff             [ 4]             lda     $FF,x           ;; load lsb from $0001
+0651 : 6901             [ 2]             adc     #$01            ;; increment
+0653 : 95ff             [ 4]             sta     $FF,x           ;; store lsb
+0655 : e8               [ 2]             inx                     ;; point to msb 
+0656 : b5ff             [ 4]             lda     $FF,x           ;; load lsb from $0002
+0658 : 6900             [ 2]             adc     #$00            ;; increment msb if carry out of lsb
+065a : 95ff             [ 4]             sta     $FF,x
                              ;;
-0652 : ca               [ 2]             dex                     ;; point back to lsb
-0653 : a1ff             [ 6]             lda     ($ff,x)         ;; load opcode at Return
-0655 : c6ff             [ 5]             dec     $ff             ;; change pointer to point to Return-1
-0657 : d1ff             [ 5]             cmp     ($ff),y         ;; both pointers (after indexing) -> Return
-                             ;;
-0659 : d0fe             [ 3]             bne     *
-                             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                             ;;
-                             ;;  Prepare Registers for looping to start of the test program
-                             ;;
-065b : a900             [ 2]             lda     #$00        ;; Imm, A = 0x00, P = 0x26
-065d : aa               [ 2]             tax                 ;; Imp, X = 0x00, P = 0x26
-065e : a8               [ 2]             tay                 ;; Imp, Y = 0x00, P = 0x26
-                             ;;
-065f : 4c1002           [ 3]             jmp     Start       ;; Imp, A = X = Y = 0x00, P = 0x26
+065c : ca               [ 2]             dex                     ;; point back to lsb
+065d : a1ff             [ 6]             lda     ($ff,x)         ;; load opcode at Return
+065f : c6ff             [ 5]             dec     $ff             ;; change pointer to point to Return-1
+0661 : d1ff             [ 5]             cmp     ($ff),y         ;; both pointers (after indexing) -> Return
 AS65 Assembler for R6502 [1.42].  Copyright 1994-2007, Frank A. Kingswood                                                 Page   17
 ------------------------------------------- M65C02_Core Test Program - all instructions -------------------------------------------
 
                              ;;
-0662 :                       Last_Addrs:
+0663 : d0fe             [ 3]             bne     *
+                             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                             ;;
+                             ;;  Prepare Registers for looping to start of the test program
+                             ;;
+0665 : a900             [ 2]             lda     #$00        ;; Imm, A = 0x00, P = 0x26
+0667 : aa               [ 2]             tax                 ;; Imp, X = 0x00, P = 0x26
+0668 : a8               [ 2]             tay                 ;; Imp, Y = 0x00, P = 0x26
+                             ;;
+0669 : 4c1002           [ 3]             jmp     Start       ;; Imp, A = X = Y = 0x00, P = 0x26
+                             ;;
+066c :                       Last_Addrs:
                              ;;
                                          end     Start
 No errors in pass 2.
-Wrote binary from address $0000 through $0661.
-Total size 1634 bytes.
+Wrote binary from address $0000 through $066b.
+Total size 1644 bytes.
 

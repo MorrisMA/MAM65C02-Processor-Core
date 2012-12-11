@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0017
+File Revision: 0018
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -16,7 +16,7 @@ endh
 --  information storage and retrieval system in violation of the license under
 --  which the source code is released.
 --
---  The souce code contained herein is free; it may be redistributed and/or 
+--  The souce code contained herein is free; it may be redistributed and/or
 --  modified in accordance with the terms of the GNU Lesser General Public
 --  License as published by the Free Software Foundation; either version 2.1 of
 --  the GNU Lesser General Public License, or any later version.
@@ -35,7 +35,7 @@ endh
 --  Boston, MA  02110-1301 USA
 --
 --  Further, no use of this source code is permitted in any form or means
---  without inclusion of this banner prominently in any derived works. 
+--  without inclusion of this banner prominently in any derived works.
 --
 --  Michael A. Morris
 --  Huntsville, AL
@@ -161,7 +161,7 @@ endh
 --                          fetch and execute, the first microstate in _Int was
 --                          set to signal Done. In this way while PCH is being
 --                          pushed, the instruction is being executed. A problem
---                          still remains in how to deal with the extra cycle 
+--                          still remains in how to deal with the extra cycle
 --                          required to complete ADC/SBC in BCD mode. The BCD
 --                          adder requires an extra cycle to complete adjustment
 --                          of the two BCD digits following the initial binary
@@ -207,13 +207,13 @@ endh
 --
 --  0015    12K12   MAM     Modified the microcode to remove the Wait control
 --                          signal, and replace it with a ZP control signal. ZP
---                          is asserted whenever an indexed zp address mode, or 
+--                          is asserted whenever an indexed zp address mode, or
 --                          an indirect indexed zero page address mode is used.
 --                          For indexed zero page addressing (zp,X; zp,Y), the
 --                          target location must be in page zero, i.e. % 256.
 --                          For indirect indexed addressing ((zp,X); (zp),Y)),
 --                          both halves of the 16-bit pointer must be located on
---                          page zero. In (zp,X), the fetch operation of the 
+--                          page zero. In (zp,X), the fetch operation of the
 --                          high byte of the pointer must wrap on page 0.
 --
 --  0016    12K17   MAM     Corrected entry for $22 from BRV1 to BRV3. removed
@@ -226,6 +226,11 @@ endh
 --                          ensure that the first instruction fetch cycle deter-
 --                          mines whether a wait state, multi-cycle microcycle
 --                          is needed.
+--
+--  0018    12L09   MAM     Added support for WAI, STP, and indirect jumps for
+--                          NMI and IRQ/BRK. Also added indirect jump for RST,
+--                          but without pushes to the stack required for other
+--                          exceptions.
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -377,7 +382,7 @@ endh
 --  tation of the M65C02 microprogram uses only 256 microwords for instruction
 --  decode, and an additional 79 microwords to implement the complete micropro-
 --  gram. Therefore, there remain 177 microwords with which to implement addi-
---  tional instructions or capabilities such as bootloading the microprogram 
+--  tional instructions or capabilities such as bootloading the microprogram
 --  memory. The current implementation uses approximately 1.88 microwords per
 --  instruction, and this includes the 78 unimplemented/unused opcodes which the
 --  M65C02 implements as NOPs. If those opcodes are not included, then a total
@@ -415,7 +420,7 @@ endh
 --
 --  The new MemTyp[1:0] field is expected to be used to let external logic know
 --  the type of memory cycle that is being performed: program memory fetch, zero
---  page access, stack page access, or data memory access. The intent is for the 
+--  page access, stack page access, or data memory access. The intent is for the
 --  microprogram to let a memory controller external to the core know what the
 --  next memory cycle will so that the memory controller can select between LUT
 --  RAM (zero page), block RAM (stack page and internal program/data memory), or
@@ -428,7 +433,7 @@ endh
 --  MPC. The current architecture of the address generator in the core makes it
 --  difficult to use AO to determine whether the memory is internal or external.
 --  However, the microprogram does "know" what memory type is being addressed
---  next. Thus, the microprogram can inform an external memory controller 
+--  next. Thus, the microprogram can inform an external memory controller
 --  whether page 0, page 1, or program/data memory is to be accessed next. Since
 --  this data is only available to the microprogram, the MemTyp field can be
 --  used by an memory controller outside of the core to implement address detec-
@@ -566,7 +571,12 @@ ISR         .equ    1       -- Assert ISR: Clear D, Set I
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 
 _Start: .org    0
-    BRV0    _Nxt,0,1                            -- Initial Fetch after Reset
+    BRV2    _Rst,0,1                            -- Load {OP2, OP1} with Vector
+_Rst:
+    FTCH    $,0,1, LDA,, RD, OP1                -- Read Indirect Dst Ptr Lo
+    FTCH    $,0,1, Nxt, Jmp, RD, OP2            -- Read Indirect Dst Ptr Hi
+--
+    BRV1    $,0,1,, Pls, IF, IR                 -- Instruction Fetch
 
 --  this space reserved for future use - boot loader for the microprogram ROMs
 
@@ -590,7 +600,7 @@ _Imm:
 --------------------------------------------------------------------------------
 
 _Int:
-    BRV2    _Brk,0,1, Stk, , WR, PCH, Psh, WE_R     -- Push PCH, capture Vector
+    BRV2    _Brk,0,1, Stk,, WR, PCH, Psh, WE_R      -- Push PCH, capture Vector
 
 --------------------------------------------------------------------------------
 --  BRK Entry - BRK #imm (_Int falls through to _Brk, see comment above)
@@ -599,6 +609,10 @@ _Int:
 _Brk:
     FTCH    $,0,1, Stk,, WR, PCL, Psh               -- Push PCL
     FTCH    $,0,1, Stk, Jmp, WR, PSW, Psh,, ISR     -- Push P; Clr D, Set I
+--
+    FTCH    $,0,1, LDA,, RD, OP1                    -- Read Indirect Dst Ptr Lo
+    FTCH    $,0,1, Nxt, Jmp, RD, OP2                -- Read Indirect Dst Ptr Hi
+--
     BRV1    $,0,1,, Pls, IF, IR                     -- Instruction Fetch
 
 --------------------------------------------------------------------------------
@@ -856,10 +870,20 @@ _RMW_AbsY:
     BMW     _RMW,0,1, MAR,, WR,,,WE_R                   -- Write to Abs,Y
 
 --------------------------------------------------------------------------------
---  End of Microprogram
+--  End of Microprogram Routines for Normal Instructions
 --------------------------------------------------------------------------------
 
 _End_uPgm:
+
+--------------------------------------------------------------------------------
+--  WAI - Wait for Interrupt
+--------------------------------------------------------------------------------
+
+_WAI:       .org    252     -- Set up 4-way table for WAI instruction
+    BMW     _WAI,0,1        -- No external interrupts asserted
+    BRV0    _Int,0,1        -- Int asserted by NMI, do NMI interrupt
+    BRV0    _Nxt,0,1        -- xIRQ asserted with IRQ_Msk asserted, continue
+    BRV0    _Int,0,1        -- Int asserted by xIRQ, do IRQ interrupt
 
 _IDEC_Start:    .org    256
 
@@ -890,7 +914,7 @@ _End_uPgm:
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
---  Row 0 : 0x00-0xF0 (All branches/JMPs/JSR implemented as uninterruptable)
+--  Row 0 : 0x00-0xF0 (All Bcc/JMP/JSR/RTS/RTI implemented as uninterruptable)
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
 _BRK_imm:
@@ -1313,10 +1337,10 @@ _NOP_AB:
     BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_BB:
     BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_CB:
-    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_DB:
-    BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
+_WAI_CB:
+    BRV0    _WAI,0,1                                -- Wait for Interrupt
+_STP_DB:
+    BRV0    $,0,1                                   -- Stop Processor Execution
 _NOP_EB:
     BRV3    $,0,1,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_FB:

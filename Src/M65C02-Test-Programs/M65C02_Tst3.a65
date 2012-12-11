@@ -47,56 +47,68 @@
 ;
 ; File created 11-Feb-2012
 ;
+;   Modified 09-Dec-2012    mam     Changed to a "ROM" type of test program
+;                                   where the program is at the top of memory
+;                                   and includes the three vectors. Intent is to
+;                                   convert core so it indirectly jump through
+;                                   the normal processor vectors when an excep-
+;                                   is performed: Reset, NMI, or IRQ/BRK.
+;
+;                                   To make this change need to add code to
+;                                   initialize page 0, 1, and 2 RAM locations.
+;
             title   "M65C02_Core Test Program - all instructions"
 ;
-IRQ_On      equ     $FFFE       ;; Set External Interrupt Request
-IRQ_Off     equ     $FFFF       ;; Clr External Interrupt Request
+ROM_Start   equ     $F800       ;; Boot "ROM" Start Address
 ;
-            code
-            org     0
+NMI_Vector  equ     $FFFA       ;; Normal Non-maskable Interrupt Vector
+RST_Vector  equ     $FFFC       ;; Normal Reset Vector
+IRQ_Vector  equ     $FFFE       ;; Normal Maskable Interrupt or BRK Vector
 ;
-            db      (hi Return)
-            dw      -Return
-;
-            org     8             
-;
-pDPI        dw      DP          ;; DP  = (pDPI)
-pDPXI       dw      DPX         ;; DPX = (pDPI,X) {X = 2}
-pDPIY       dw      DPY         ;; DPY = (pDPI),Y {Y = 2}
-;
-            org     16
-;
-DP          db      0           ;; DP;  DP,X (X = 0); DP,Y (Y = 0)
-DPX         db      0           ;; DPX; DP,X (X = 1); DP,Y (Y = 1)
-DPY         db      0           ;; DPY; DP,X (X = 2); DP,Y (Y = 2)
-;
-            org     255
-;
-            db      (lo Return)
-;
+IRQ_On      equ     $FFF8       ;; Set External Interrupt Request
+IRQ_Off     equ     $FFF9       ;; Clr External Interrupt Request
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
             bss
-            org     256
-;
+            org     $0000
+;;
+Hi_Return   ds      1
+Neg_Return  ds      2
+;;
+            org     $0008             
+;;
+pDPI        ds      2           ;; DP  = (pDPI)
+pDPXI       ds      2           ;; DPX = (pDPI,X) {X = 2}
+pDPIY       ds      2           ;; DPY = (pDPI),Y {Y = 2}
+;;
+            org     $0010
+;;
+DP          ds      1           ;; DP;  DP,X (X = 0); DP,Y (Y = 0)
+DPX         ds      1           ;; DPX; DP,X (X = 1); DP,Y (Y = 1)
+DPY         ds      1           ;; DPY; DP,X (X = 2); DP,Y (Y = 2)
+;;
+            org     $00FF
+;;
+Lo_Return   ds      1
+;;
+            bss
+Stack_Page  org     $0100
+;;
+RAM_Start   org     $0200
+;;
+Abs         ds      1
+AbsX        ds      1
+AbsY        ds      1
+;;
             code
-            org     512
-;
+            org     ROM_Start
+Start       jmp     Abs_Dst
+;;
 Jmp_AbsI    dw      AbsI_Dst
 Jmp_AbsXI   dw      AbsXI_Dst
-;
-            org     512+8
-;
-Abs         db      0
-AbsX        db      0
-AbsY        db      0
-;
-            code
-            org     512+16
-;
-Start       jmp     Abs_Dst
-Return      rts
-Abs_Dst     jmp     (Jmp_AbsI)
-            nop
-AbsI_Dst    jmp     (Jmp_AbsXI, x)
+;;
+            ds      1
 ;;
 Interrupt   pha                 ;; preserve Acc
             php                 ;; push current PSW, on entry D cleared and 
@@ -107,6 +119,35 @@ Interrupt   pha                 ;; preserve Acc
             beq     *           ;; if == 0, error
             pla                 ;; restore Acc
 ISR_End     rti                 ;; Exit ISR
+;;
+Init_RAM    lda     #(lo Return)
+            sta     Lo_Return
+            lda     #(hi Return)
+            sta     Hi_Return
+;;
+            lda     #(lo -Return)
+            sta     Hi_Return+1
+            lda     #(hi -Return)
+            sta     Hi_Return+2
+;;
+            lda     #(lo DP)
+            sta     pDPI
+            stz     pDPI+1
+;;
+            lda     #(lo DPX)
+            sta     pDPXI
+            stz     pDPXI+1
+;;
+            lda     #(lo DPY)
+            sta     pDPIY
+            stz     pDPIY+1
+;;
+Return      rts
+;;
+Abs_Dst     jmp     (Jmp_AbsI)
+            nop
+AbsI_Dst    jmp     (Jmp_AbsXI, x)
+            nop
 ;;
 AbsXI_Dst   jsr     Return
             nop
@@ -640,6 +681,8 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
 ;;
 ;;  Direct/Zero Page Indirect Instructions
 ;;
+            jsr     Init_RAM    ;; Initialize RAM used for pointers
+;;
             lda     #$24        ;; Imm,     A    = 0x24, P = 0xXX
             pha                 ;; Imp,     A    = 0x24, P = 0xXX
             plp                 ;; Imp,     A    = 0x24, P = 0x24
@@ -710,7 +753,7 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             db      $07, $17, $27, $37, $47, $57, $67, $77  ;; RMBx dp
             db      $87, $97, $A7, $B7, $C7, $D7, $E7, $F7  ;; SMBx dp
             db      $0B, $1B, $2B, $3B, $4B, $5B, $6B, $7B
-            db      $8B, $9B, $AB, $BB, $CB, $DB, $EB, $FB
+            db      $8B, $9B, $AB, $BB, $EB, $FB
             db      $5C, $DC, $FC
             db      $0F, $1F, $2F, $3F, $4F, $5F, $6F, $7F  ;; BBRx dp,rel
             db      $8F, $9F, $AF, $BF, $CF, $DF, $EF, $FF  ;; BBSx dp,rel
@@ -759,11 +802,13 @@ IRQ_Tst4:   sei
 ;;  Test zp,x and zp,y page zero wrapping
 ;;
             lda     #$00        ;; clear Accumulator
-            tax                 ;; clear X
-            tay                 ;; clear Y
-            inx                 ;; increment X to test first index operation
-            iny                 ;; increment Y twice to force it to point to
-            iny                 ;; wrapped negative of the wrapped pointer.
+            ldx     #$01        ;; Set X to test first page 0 index operation
+            ldy     #$02        ;; Set Y to test second index operation
+;;            tax                 ;; clear X
+;;            tay                 ;; clear Y
+;;            inx                 ;; increment X to test first index operation
+;;            iny                 ;; increment Y twice to force it to point to
+;;            iny                 ;; wrapped negative of the wrapped pointer.
 ;;
             clc                 ;; clear carry before summation
             lda     $FE,x       ;; load low byte of the
@@ -835,5 +880,15 @@ IRQ_Tst4:   sei
             jmp     Start       ;; Imp, A = X = Y = 0x00, P = 0x26
 ;;
 Last_Addrs:
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Vector Table
+;;
+Vect_Table  org     $FFFA
+;;
+            dw      Start       ;; NMI Interrupt Vector
+            dw      Start       ;; Reset Vector
+            dw      Interrupt   ;; IRQ/BRK Interrupt Vector
 ;;
             end     Start

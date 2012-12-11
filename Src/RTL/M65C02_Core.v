@@ -269,6 +269,19 @@
 //                          additional clarification refer to comment 1.6 of the
 //                          M65C02_ALU module.)
 //
+//  3.10    12L09   MAM     Added capability to support WAI instruction. Needed
+//                          signal, xIRQ, that indicates an active low external
+//                          interrupt request is asserted but the interrupt mask
+//                          is set so the processor will not take the interrupt.
+//                          Under these conditions, the WAI continues with the
+//                          next sequential instruction. In addition to adding
+//                          xIRQ to the input ports of the core, the multi-way
+//                          branch multiplexer required a change to support a 
+//                          4-way branch table when WAI is executing, and a
+//                          2-way for all other instructions. To support the
+//                          detection of the WAI instruction, changed the Mode
+//                          vector to identify the WAI and STP instructions. 
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -322,6 +335,7 @@ module M65C02_Core #(
     //  Processor Core Interrupt Interface
     
     output  IRQ_Msk,        // Interrupt mask from P to Interrupt Handler
+    input   xIRQ,           // External Maskable Interrupt Request Input
     input   Int,            // Interrupt input from Interrupt Handler
     input   [15:0] Vector,  // ISR Vector from Interrupt Handler
     
@@ -435,6 +449,8 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 // Local Signal Declarations
 //
 
+wire    WAI;                            // Instruction Mode Decode for WAI
+
 wire    BCD_Op;                         // BCD Operation - requires extra cycle
 wire    [1:0] MC_Len;                   // Microcycle Length Select
 wire    MPC_En;                         // Microcycle Complete
@@ -546,8 +562,9 @@ assign BRV3 = (Via == pBRV3);
 assign BMW  = (I   == pBMW ); 
 
 //  Define the Multi-Way Input Signals
+//      Implement a 4-way branch when executing WAI, and a 2-way otherwise
 
-assign MW = {uP_BA[2:1], Int};          //  Implement as a 2-way branch
+assign MW = ((WAI) ? {uP_BA[2], xIRQ, Int} : {uP_BA[2:1], Int});
 
 //  Implement the Branch Address Field Multiplexer for Instruction Decode
 
@@ -563,7 +580,7 @@ end
 
 //  Assign Test Input Signals
 
-assign T = {3'b00, Valid};
+assign T = {3'b000, Valid};
 
 //  Determine if current instruction is an ADC/SBC in BCD mode
 
@@ -682,17 +699,21 @@ end
 
 //  Decode Fixed Microcode Word
 
-assign  Mode   = IDEC[31:29];     // M65C02 Instruction Type/Mode
-assign  RMW    = IDEC[28];        // M65C02 Read-Modify-Write Instruction
-assign  Op     = IDEC[27:24];     // M65C02 ALU Operation Select Field
-assign  QSel   = IDEC[23:22];     // M65C02 ALU AU Q Bus Mux Select Field
-assign  RSel   = IDEC[21];        // M65C02 ALU AU/SU R Bus Mux Select Field
-assign  Sub    = IDEC[20];        // M65C02 ALU AU Mode Select Field
-assign  CSel   = IDEC[19];        // M65C02 ALU AU/SU Carry Mux Select Field
-assign  WSel   = IDEC[18:16];     // M65C02 ALU Register Write Select Field
-assign  OSel   = IDEC[15:13];     // M65C02 ALU Register Output Select Field
-assign  CCSel  = IDEC[12: 8];     // M65C02 ALU Condition Code Control Field
-assign  Opcode = IDEC[ 7: 0];     // M65C02 Instruction Opcode (Reserved)
+assign  Mode   = IDEC[31:29];       // M65C02 Instruction Type/Mode
+assign  RMW    = IDEC[28];          // M65C02 Read-Modify-Write Instruction
+assign  Op     = IDEC[27:24];       // M65C02 ALU Operation Select Field
+assign  QSel   = IDEC[23:22];       // M65C02 ALU AU Q Bus Mux Select Field
+assign  RSel   = IDEC[21];          // M65C02 ALU AU/SU R Bus Mux Select Field
+assign  Sub    = IDEC[20];          // M65C02 ALU AU Mode Select Field
+assign  CSel   = IDEC[19];          // M65C02 ALU AU/SU Carry Mux Select Field
+assign  WSel   = IDEC[18:16];       // M65C02 ALU Register Write Select Field
+assign  OSel   = IDEC[15:13];       // M65C02 ALU Register Output Select Field
+assign  CCSel  = IDEC[12: 8];       // M65C02 ALU Condition Code Control Field
+assign  Opcode = IDEC[ 7: 0];       // M65C02 Instruction Opcode (Reserved)
+
+// Decode Mode for internal signals
+
+assign  WAI =  &Mode;               // Current Instruction is WAI
 
 //  Next Address Generator
 

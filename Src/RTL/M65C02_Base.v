@@ -262,6 +262,19 @@
 //                          comment 1.60 in M65C02_ALU for additional clarifi-
 //                          cation of the timing implications.)
 //
+//  3.10    12L09   MAM     Added capability to support WAI instruction. Needed
+//                          signal, xIRQ, that indicates an active low external
+//                          interrupt request is asserted but the interrupt mask
+//                          is set so the processor will not take the interrupt.
+//                          Under these conditions, the WAI continues with the
+//                          next sequential instruction. In addition to adding
+//                          xIRQ to the input ports of the core, the multi-way
+//                          branch multiplexer required a change to support a 
+//                          4-way branch table when WAI is executing, and a
+//                          2-way for all other instructions. To support the
+//                          detection of the WAI instruction, changed the Mode
+//                          vector to identify the WAI and STP instructions. 
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -313,6 +326,7 @@ module M65C02_Base #(
     input   Clk,            // System Clock Input
 
     output  IRQ_Msk,        // Interrupt mask from P to Interrupt Handler
+    input   xIRQ,           // External Maskable Interrupt Request Input
     input   Int,            // Interrupt input from Interrupt Handler
     input   [15:0] Vector,  // ISR Vector from Interrupt Handler
 
@@ -413,6 +427,8 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 //
 // Local Signal Declarations
 //
+
+wire    WAI;                            // Instruction Mode Decode for WAI
 
 wire    Ack;                            // External Ack gated by Wait
 
@@ -525,8 +541,9 @@ assign BRV3 = (Via == pBRV3);
 assign BMW  = (I   == pBMW ); 
 
 //  Define the Multi-Way Input Signals
+//      Implement a 4-way branch when executing WAI, and a 2-way otherwise
 
-assign MW = {uP_BA[2:1], Int};          //  Implement as a 2-way branch
+assign MW = ((WAI) ? {uP_BA[2], xIRQ, Int} : {uP_BA[2:1], Int});
 
 //  Implement the Branch Address Field Multiplexer for Instruction Decode
 
@@ -542,7 +559,7 @@ end
 
 //  Assign Test Input Signals
 
-assign T = {3'b00, Valid};
+assign T = {3'b000, Valid};
 
 //  Instantiate Microprogram Controller/Sequencer - modified F9408A MPC
 
@@ -664,6 +681,10 @@ assign  WSel   = IDEC[18:16];     // M65C02 ALU Register Write Select Field
 assign  OSel   = IDEC[15:13];     // M65C02 ALU Register Output Select Field
 assign  CCSel  = IDEC[12: 8];     // M65C02 ALU Condition Code Control Field
 assign  Opcode = IDEC[ 7: 0];     // M65C02 Instruction Opcode (Reserved)
+
+// Decode Mode for internal signals
+
+assign  WAI =  &Mode;               // Current Instruction is WAI
 
 //  Compute Zero Page command to Address Generator
 //      A page 0 addressing mode is commanded by the microcode in the NA_Op

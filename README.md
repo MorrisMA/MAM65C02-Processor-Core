@@ -64,11 +64,9 @@ outputs may be used to provide additional signals to external devices.
     6 - MEM - multi-cycle instruction with memory access for operands,
     7 - WAI - wait for interrupt instruction.
 
-*Done* is asserted during the instruction fetch of the next instruction. In many 
-cases, the execution of each instruction is signalled by Done on the same 
-cycle that the next instruction op-code is being read from memory. Thus, the 
-M65C02 core demonstrates pipelined behaviour, and as a result, tends to 
-execute many W65C02 instructions in fewer clock cycles.
+*Done* is asserted during the instruction fetch of the next instruction. 
+During that fetch cycle, all instructions complete execution. Thus, the M65C02 
+is pipelined, and executes many instructions in fewer cycles than the 65C02. 
 
 *SC* is used to indicate a single cycle instruction.
 
@@ -101,8 +99,9 @@ and several memory initialization files:
     
     tb_M65C02_Core.v        - Completed core testbench with test RAM
     
-    M65C02.txt              - Memory configuration file of M65C02 test program
-        M65C02_Tst2.a65     - Kingswood A65 assembler source code test program
+    M65C02.txt              - Memory configuration file of M65C02 "RAM"
+    M65C02_Tst3.txt         - Memory configuration file of M65C02 "ROM" program
+        M65C02_Tst3.a65     - Kingswood A65 assembler source code test program
 
     tb_M65C02_ALU.v         - testbench for the ALU module
     tb_M65C02_BCD.v         - testbench for the BCD adder module
