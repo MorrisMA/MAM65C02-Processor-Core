@@ -16,33 +16,23 @@ It is provided as a core. Several external components are required to form a
 functioning processor: (1) memory, (2) interrupt controller, and (3) I/O 
 interface buffers. The Verilog testbench provided demonstrates a simple 
 configuration for a functioning processor implemented with the M65C02 core: 
-M65C02_Core. Currently, the core provided here only executes the original op-
-codes of the WDC W65C02 processor, and not the extended instructions of the 
-current WDC W65C02S synthesizable core. (In addition to the original W65C02 
-instructions, the WDC W65C02S also implements the BBSx, BBRx, SMBx, and RMBx 
-instructions introduced by Rockwell in the R65C02, and additional instructions 
-introduced by WDC (WAI/STP) in its 65C802/65C816 microprocessors.)
+M65C02_Core. The core, as currently implemented, executes the 65C02 
+instruction set with the execption of the Rockwell instructions: BBSx, BBRx, 
+SMBx, and RMBx. (These four instructions will be added in the near future.)
 
-The core handles an interrupt signal, which external logic asserts after it 
-processes any interrupts that it services. That is, the core accepts and 
-performs the interrupt trap processing, but the external logic must implement 
-the type of interrupt (maskable or non-maskable), and provide the vector to 
-the core. This implementation is different than the original processor's in 
-that an indirect jump through a pre-determined address is not performed by the 
-core. The implementation envisioned is that the external interrupt controller 
-records the vectors for reset (RST), the non-maskable interrupt (NMI), or the 
-maskable interrupt (IRQ) and provides the appropriate vector when requested by 
-the core. Although this approach means that the JMP (vector) operation is not 
-performed, it is unlikely that a processor emulator, which may require the 
-original processor's behaviour, will be used with a modern, FPGA-based 65C02 
-core. Further, the approach selected for this core greatly speeds entry into 
-the ISR by not performing the vector fetch using JMP (vector) operation, and 
-is more consistent with a modern re- implementation. Further, this approach 
-can be used to support a vectored interrupt structure with more interrupt 
-sources than the original processor implementation supported: IRQ, NMI, and 
-RST.
+The core accepts an interrupt signal from an external interrupt controller. 
+The core provides the interrupt mask bit to the external interrupt controller, 
+and expects the controller to handle the detection of the NMI edge, the 
+prioritization of the interrupt sources, and to provide the interrupt and 
+exception vectors. The core also provides an indication of whether the BRK 
+instruction is being executed. With this additional information, the external 
+interrupt controller is expected to provide the same vector for the BRK 
+exception as the vector for the IRQ interrupt request, or another suitable 
+vector. This approach to interrupt handling can be used to support a vectored 
+interrupt structure with more interrupt sources than the original processor 
+implementation supported: NMI, RST, and IRQ.
 
-The Release 2.x core now provides a microcycle length controller as an 
+With Release 2.x, the core now provides a microcycle length controller as an 
 integral component of its Microprogram Controller (MPC). The microprogram can 
 now inform the external memory controller, on a cycle by cycle basis, of the 
 memory cycle type. Logic external to the core can use this output to map the 
@@ -60,36 +50,35 @@ memories types supported by the user-supplied external memory controller.
 
 The core provides a large number of status and control signals that external 
 logic may use. It also provides access to many internal signals such as all of 
-the registers, A, X, Y, S, and P. The Mode, RMW, SC, and Done status outputs 
-may be used to provide additional signals to external devices. Mode provides 
-an indication of the kind of instruction being executed:
+the registers, A, X, Y, S, and P. The *Mode*, *Done*, *SC*, and *RMW* status 
+outputs may be used to provide additional signals to external devices.
 
-    0 - internal/single cycle (INC/DEC A, TAX/TXA, SEI/CLI, etc.),
-    1 - memory access (LDA/LDX/LDY, STA/STX/STY/STZ, INC abs, etc.),
-    2 - stack access (PHA/PLA, PHX/PLX, PHY/PLY),
-    3 - jump/branch (JMP, BRA, Bcc),
-    4 - subroutine call (JSR),
-    5 - subroutine return (RTS/RTI)
-    6 - break (BRK)
-    7 - Invalid (all undefined op-codes)
+*Mode* provides an indication of the kind of instruction being executed:
 
-RMW indicates that a read-modify-write instruction will be performed. External
-logic can use this signal to lock memory.
+    0 - STP - Stop processor instruction executed,
+    1 - INV - invalid instruction (uniformly treated a single cycle NOPs),
+    2 - BRK - Break instruction being executed
+    3 - JMP - jump/branch (Bcc, JMP, JSR, RTS, RTI),
+    4 - STK - stack access (PHA/PLA, PHX/PLX, PHY/PLY),
+    5 - INT - single cycle instruction (INC/DEC A, TAX/TXA, SEI/CLI, etc.),
+    6 - MEM - multi-cycle instruction with memory access for operands,
+    7 - WAI - wait for interrupt instruction.
 
-SC is used to indicate a single cycle instruction.
-
-Done is asserted during the instruction fetch of the next instruction. In many 
+*Done* is asserted during the instruction fetch of the next instruction. In many 
 cases, the execution of each instruction is signalled by Done on the same 
 cycle that the next instruction op-code is being read from memory. Thus, the 
 M65C02 core demonstrates pipelined behaviour, and as a result, tends to 
 execute many W65C02 instructions in fewer clock cycles.
 
-The external bus transaction is signalled by IO_Op. IO_Op signals data memory 
-writes, data memory reads, and instruction memory reads. Therefore, external 
-logic may implement separate data and instruction memories and potentially 
-double the amount of memory that an implementation may access. Using Mode it 
-is also possible for stack memory to be separate from data and instruction 
-memory.
+*SC* is used to indicate a single cycle instruction.
+
+*RMW* indicates that a read-modify-write instruction will be performed. External
+logic can use this signal to lock memory.
+
+The external bus transaction is signalled by *IO_Op*. *IO_Op* signals data 
+memory writes, data memory reads, and instruction memory reads. Therefore, 
+external logic may implement separate data and instruction memories and 
+potentially double the amount of memory that an implementation may access. 
 
 Implementation
 --------------
@@ -130,14 +119,14 @@ reports that the 9.091 ns period (110 MHz) constraint is satisfied.
 The ISE 10.1i SP3 implementation results are as follows:
 
     Number of Slice FFs:            196
-    Number of 4-input LUTs:         693
-    Number of Occupied Slices:      420
-    Total Number of 4-input LUTs:   705 (12 used as route-throughs)
+    Number of 4-input LUTs:         699
+    Number of Occupied Slices:      422
+    Total Number of 4-input LUTs:   711 (12 used as route-throughs)
 
     Number of BUFGMUXs:             1
     Number of RAMB16BWEs            2   (M65C02_Decoder_ROM, M65C02_uPgm_V3a)
 
-    Best Case Achievable:           9.043 ns (0.048 ns Setup, 0.864 ns Hold)
+    Best Case Achievable:           9.036 ns (0.055 ns Setup, 1.068 ns Hold)
 
 Status
 ------
@@ -182,6 +171,8 @@ cycle memory like that provided by the distributed LUT RAMs of the target
 FPGAs. The approach used in Release 2 should make it much easier to adapt the 
 M65C02 core.
 
+####Release 2.1
+
 Release 2.1 has modified the core to export signals to an external memory
 controller that would allow the memory controller to drive the core logic with
 the required microcycle length value for the next microcycle. The test bench for
@@ -191,6 +182,8 @@ is achieved between the two cores and the common test program. Release 2.1 also
 includes a modified memory model module, M65C02_RAM,v, that supports all three
 types of memory that is expected to be used with the core: LUT (page 0), BRAM
 (page 1 and internal program/data memory), and external pipelined SynchRAM.
+
+####Release 2.2
 
 Release 2.2 has been tested using microcycles of 1, 2, or 4 cycles in length. 
 During testing, some old issues returned when multi-cycle microcycles were 
@@ -205,3 +198,16 @@ to address this issue still worked, but the single cycle solutions applied did
 not generalize to the multi-cycle cases. Thus, several modules were modified 
 so that ISR, BCD, and zero page addressing modes now behave correctly for 
 single and multi-cycle microcycles.
+
+####Release 2.3
+
+Release 2.3 implements the standard 6502/65C02 vector fetch operations and 
+adds the WAI and STP instructions. Both versions are updated to incorporate 
+these features. The testbench has been modified to include another M6502_RAM 
+module, and to separate the two modules into "ROM" at high memory and "RAM" at 
+low memory. The test program has been updated to include initialization of 
+"RAM" by the test program running from "ROM". Initialization of the stack 
+pointer is still part of the core logic, and the test program expects that S 
+is initialized to 0xFF on reset, and that the reset vector fetch sequence does 
+not modify the stack. In other words, the Release 2.3 core does not write to 
+the stack before fetching the vector and starting execution at that address.
