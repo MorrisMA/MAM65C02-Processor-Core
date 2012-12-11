@@ -99,7 +99,6 @@ and several memory initialization files:
     
     tb_M65C02_Core.v        - Completed core testbench with test RAM
     
-    M65C02.txt              - Memory configuration file of M65C02 "RAM"
     M65C02_Tst3.txt         - Memory configuration file of M65C02 "ROM" program
         M65C02_Tst3.a65     - Kingswood A65 assembler source code test program
 
