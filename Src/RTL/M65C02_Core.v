@@ -280,7 +280,12 @@
 //                          4-way branch table when WAI is executing, and a
 //                          2-way for all other instructions. To support the
 //                          detection of the WAI instruction, changed the Mode
-//                          vector to identify the WAI and STP instructions. 
+//                          vector to identify the WAI and STP instructions.
+//
+//  3.20    12L13   MAM     Renamed, previously unused and reserved fixed micro-
+//                          word Opcode field to Msk, and ported into the ALU.
+//                          The new field provides the bit mask needed for the
+//                          implementation of the Rockwell instructions.
 //
 // Additional Comments:
 //
@@ -501,7 +506,7 @@ wire    CSel;                       // M65C02 ALU Adder Carry In Select Field
 wire    [2:0] WSel;                 // M65C02 ALU Register Write Select Field
 wire    [2:0] OSel;                 // M65C02 ALU Output Select Field
 wire    [4:0] CCSel;                // M65C02 ALU Condition Code Control Field
-wire    [7:0] Opcode;               // M65C02 Instruction Opcode
+wire    [7:0] Msk;                  // M65C02 Rockwell Instruction Mask Field
   
 wire    [7:0] Out;                  // M65C02 ALU Data Output Bus
 wire    Valid;                      // M65C02 ALU Output Valid Signal
@@ -699,17 +704,17 @@ end
 
 //  Decode Fixed Microcode Word
 
-assign  Mode   = IDEC[31:29];       // M65C02 Instruction Type/Mode
-assign  RMW    = IDEC[28];          // M65C02 Read-Modify-Write Instruction
-assign  Op     = IDEC[27:24];       // M65C02 ALU Operation Select Field
-assign  QSel   = IDEC[23:22];       // M65C02 ALU AU Q Bus Mux Select Field
-assign  RSel   = IDEC[21];          // M65C02 ALU AU/SU R Bus Mux Select Field
-assign  Sub    = IDEC[20];          // M65C02 ALU AU Mode Select Field
-assign  CSel   = IDEC[19];          // M65C02 ALU AU/SU Carry Mux Select Field
-assign  WSel   = IDEC[18:16];       // M65C02 ALU Register Write Select Field
-assign  OSel   = IDEC[15:13];       // M65C02 ALU Register Output Select Field
-assign  CCSel  = IDEC[12: 8];       // M65C02 ALU Condition Code Control Field
-assign  Opcode = IDEC[ 7: 0];       // M65C02 Instruction Opcode (Reserved)
+assign  Mode  = IDEC[31:29];       // M65C02 Instruction Type/Mode
+assign  RMW   = IDEC[28];          // M65C02 Read-Modify-Write Instruction
+assign  Op    = IDEC[27:24];       // M65C02 ALU Operation Select Field
+assign  QSel  = IDEC[23:22];       // M65C02 ALU AU Q Bus Mux Select Field
+assign  RSel  = IDEC[21];          // M65C02 ALU AU/SU R Bus Mux Select Field
+assign  Sub   = IDEC[20];          // M65C02 ALU AU Mode Select Field
+assign  CSel  = IDEC[19];          // M65C02 ALU AU/SU Carry Mux Select Field
+assign  WSel  = IDEC[18:16];       // M65C02 ALU Register Write Select Field
+assign  OSel  = IDEC[15:13];       // M65C02 ALU Register Output Select Field
+assign  CCSel = IDEC[12: 8];       // M65C02 ALU Condition Code Control Field
+assign  Msk   = IDEC[ 7: 0];       // M65C02 Rockwell Instruction Mask Field
 
 // Decode Mode for internal signals
 
@@ -790,6 +795,7 @@ M65C02_ALU  #(
                 .WSel(WSel),        // M65C02 ALU Register Write Select Input
                 .OSel(OSel),        // M65C02 ALU Output Register Select Input
                 .CCSel(CCSel),      // M65C02 ALU Condition Code Select Input
+                .Msk(Msk),          // M65C02 ALU Rockwell Instructions Mask
 
                 .M(OP1),            // M65C02 ALU Memory Operand Input
                 .Out(Out),          // M65C02 ALU Output Multiplexer

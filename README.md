@@ -16,9 +16,7 @@ It is provided as a core. Several external components are required to form a
 functioning processor: (1) memory, (2) interrupt controller, and (3) I/O 
 interface buffers. The Verilog testbench provided demonstrates a simple 
 configuration for a functioning processor implemented with the M65C02 core: 
-M65C02_Core. The core, as currently implemented, executes the 65C02 
-instruction set with the execption of the Rockwell instructions: BBSx, BBRx, 
-SMBx, and RMBx. (These four instructions will be added in the near future.)
+M65C02_Core. The M65C02 core supports the full instruction set of the W65C02. 
 
 The core accepts an interrupt signal from an external interrupt controller. 
 The core provides the interrupt mask bit to the external interrupt controller, 
@@ -33,20 +31,21 @@ interrupt structure with more interrupt sources than the original processor
 implementation supported: NMI, RST, and IRQ.
 
 With Release 2.x, the core now provides a microcycle length controller as an 
-integral component of its Microprogram Controller (MPC). The microprogram can 
-now inform the external memory controller, on a cycle by cycle basis, of the 
-memory cycle type. Logic external to the core can use this output to map the 
-memory cycle to whatever memory is appropriate, and to drive the microcycle 
-length inputs of the core to extend each microcycle if necessary. Thus, the 
-Release 2.x core no longer assumes that the external memory is implemented as 
-an asynchronous memory device, and as a result, the core no longer expects 
-that the memory will accept an address and return the read data at that 
-address in the same cycle. With the built-in microcycle length controller, 
-single cycle LUT-based zero page memory, 2 cycle internal block RAM memory, 
-and 4 cycle external memory can easily be supported. A Wait input can also be 
-used to extend, i.e. add wait states, to the 4 cycle microcycles, so a wide 
-variety of memories can be easily supported; the only limitation being the 
-memories types supported by the user-supplied external memory controller.
+integral component of the M65C02 Microprogram Controller (MPC). The M65C02 
+core microprogram can now inform the external memory controller, on a cycle by 
+cycle basis, of the memory cycle type. Logic external to the core can use this 
+output to map the memory cycle to whatever memory is appropriate, and to drive 
+the microcycle length inputs of the core to extend each microcycle if 
+necessary. Thus, the Release 2.x core no longer assumes that the external 
+memory is implemented as an asynchronous memory device, and as a result, the 
+core no longer expects that the memory will accept an address and return the 
+read data at that address in the same cycle. With the built-in microcycle 
+length controller, single cycle LUT-based zero page memory, 2 cycle internal 
+block RAM memory, and 4 cycle external memory can easily be supported. A Wait 
+input can also be used to extend, i.e. add wait states, to the 4 cycle 
+microcycles, so a wide variety of memories can be easily supported; the only 
+limitation being the memory types supported by the user-supplied external 
+memory controller.
 
 The core provides a large number of status and control signals that external 
 logic may use. It also provides access to many internal signals such as all of 
@@ -55,14 +54,14 @@ outputs may be used to provide additional signals to external devices.
 
 *Mode* provides an indication of the kind of instruction being executed:
 
-    0 - STP - Stop processor instruction executed,
+    0 - STP - stop processor instruction executed,
     1 - INV - invalid instruction (uniformly treated a single cycle NOPs),
-    2 - BRK - Break instruction being executed
-    3 - JMP - jump/branch (Bcc, JMP, JSR, RTS, RTI),
+    2 - BRK - break instruction being executed
+    3 - JMP - branch/jump/return (Bcc, BBRx/BBSx, JMP/JSR, RTS/RTI),
     4 - STK - stack access (PHA/PLA, PHX/PLX, PHY/PLY),
     5 - INT - single cycle instruction (INC/DEC A, TAX/TXA, SEI/CLI, etc.),
     6 - MEM - multi-cycle instruction with memory access for operands,
-    7 - WAI - wait for interrupt instruction.
+    7 - WAI - wait for interrupt instruction being executed.
 
 *Done* is asserted during the instruction fetch of the next instruction. 
 During that fetch cycle, all instructions complete execution. Thus, the M65C02 
@@ -73,10 +72,10 @@ is pipelined, and executes many instructions in fewer cycles than the 65C02.
 *RMW* indicates that a read-modify-write instruction will be performed. External
 logic can use this signal to lock memory.
 
-The external bus transaction is signalled by *IO_Op*. *IO_Op* signals data 
-memory writes, data memory reads, and instruction memory reads. Therefore, 
-external logic may implement separate data and instruction memories and 
-potentially double the amount of memory that an implementation may access. 
+*IO_Op* indicates the I/O cycle required. *IO_Op* signals data memory writes, 
+data memory reads, and instruction memory reads. Therefore, external logic may 
+implement separate data and instruction memories and potentially double the 
+amount of memory that an implementation may access. 
 
 Implementation
 --------------
@@ -112,19 +111,19 @@ The objective for the core is to synthesize such that the FF-FF speed is 100 MHz
 or higher in a Xilinx XC3S200AN-5FGG256 FPGA using Xilinx ISE 10.1i SP3. In that
 regard, the core provided meets and exceeds that objective. Using the settings
 provided in the M65C02.tcl file, ISE 10.1i tool implements the design and
-reports that the 9.091 ns period (110 MHz) constraint is satisfied.
+reports that the 10.000 ns period (100 MHz) constraint is satisfied.
 
 The ISE 10.1i SP3 implementation results are as follows:
 
-    Number of Slice FFs:            196
-    Number of 4-input LUTs:         699
-    Number of Occupied Slices:      422
-    Total Number of 4-input LUTs:   711 (12 used as route-throughs)
+    Number of Slice FFs:            191
+    Number of 4-input LUTs:         747
+    Number of Occupied Slices:      459
+    Total Number of 4-input LUTs:   760 (13 used as route-throughs)
 
     Number of BUFGMUXs:             1
     Number of RAMB16BWEs            2   (M65C02_Decoder_ROM, M65C02_uPgm_V3a)
 
-    Best Case Achievable:           9.036 ns (0.055 ns Setup, 1.068 ns Hold)
+    Best Case Achievable:           9.962 ns (0.038 ns Setup, 1.028 ns Hold)
 
 Status
 ------
@@ -209,3 +208,8 @@ pointer is still part of the core logic, and the test program expects that S
 is initialized to 0xFF on reset, and that the reset vector fetch sequence does 
 not modify the stack. In other words, the Release 2.3 core does not write to 
 the stack before fetching the vector and starting execution at that address.
+
+####Release 2.4
+
+Release 2.4 incorporates the 32 Rockwell instruction opcodes and the WAI and STP
+instructions.

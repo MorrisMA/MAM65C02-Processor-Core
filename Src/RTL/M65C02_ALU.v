@@ -380,6 +380,15 @@
 //                          the modification until the first cycle of the next
 //                          microcycle; the original intent.
 //
+//  2.00    12L11   MAM     Added the Rockwell instructions (RMBx, SMBx, BBRx,
+//                          and BBSx) to the ALU. Modified the Bit Logical Unit
+//                          to accept a new command and bit mask input. The new
+//                          commands use four unused CCSel codes, and a mask
+//                          provided by a new input port connected to the Decode
+//                          ROM. All other changes expected to be made in the 
+//                          microprogram. RMBx/SMBx can use the RMW_DP micro-
+//                          routine, but BBRx/BBSx require a new microroutine.
+//
 // Additional Comments:
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -406,6 +415,7 @@ module M65C02_ALU #(
     input   [2:0] WSel,     // ALU Register WE Select
     input   [2:0] OSel,     // ALU Output Multiplexer Select
     input   [4:0] CCSel,    // ALU Condition Code Operation Select
+    input   [7:0] Msk,      // ALU Mask for Rockwell Instructions
     
     input   [7:0] M,        // ALU Memory Operand Input
     output  reg [7:0] Out,  // ALU Output(asynchronous)
@@ -470,6 +480,11 @@ localparam pSel_M   = 7;    // Select Memory Operand
 
 //  Condition Code Select
 
+localparam pSMB  = 4;       // Set Memory Bit
+localparam pRMB  = 5;       // Reset Memory Bit
+localparam pBBS  = 6;       // Branch if Memory Bit Set
+localparam pBBR  = 7;       // Branch if Mmemory Bit Reset
+//
 localparam pCC   = 8;       // Carry Clear
 localparam pCS   = 9;       // Carry Set
 localparam pNE   = 10;      // Not Equal to Zero
@@ -520,6 +535,9 @@ reg     [8:0] SU;               // Shift/Rotate Unit Output
 reg     SU_Valid;               // SU Output Valid
 reg     [8:0] BU;               // Bit Unit Output
 reg     BU_Valid;               // BU Output Valid
+
+reg     [8:0] RU;               // Rockwell Unit Output
+reg     RU_Valid;               // RU Output Valid
 
 wire    LST_En;                 // Load/Store/Transfer Enable
 reg     [8:0] LST;              // Load/Store/Transfer Output Multiplexer
@@ -632,9 +650,9 @@ assign En_BU = (En & ((Op[3:2] == 2'b11) & ~(Op == pALU_CMP)));
 always @(*)
 begin
     case(Op[1:0])
-        2'b01   : BU <= {1'b0, ~A & M}; // TRB
-        2'b10   : BU <= {1'b0,  A | M}; // TSB
-        default : BU <= {1'b0,  A & M}; // BIT
+        2'b01   : BU <= {1'b0,  ~A & M};    // TRB
+        2'b10   : BU <= {1'b0,   A | M};    // TSB
+        default : BU <= {1'b0,   A & M};    // BIT
     endcase
 end
 
@@ -642,6 +660,31 @@ always @(*)
 begin
     BU_Valid <= En_BU;
 end
+
+//  Rockwell Unit 
+//  Capabilities expanded to execute the Rockwell RSBx, SMBx, BBRx, and BBSx
+//  instructions. The CCSel field is used to select the operation:
+//      4 - SMBx; 4 - RMBx; 6 = BBSx; 7 - BBRx;
+//  if(CCSel[4:2] == 1) one of the Rockwell instructions is being executed;
+//  else a normal 65C02 instruction is being executed;
+//
+//  For the Rockwell instructions, the mask is not provided by the accumulator.
+//  Instead, the mask is provided by least significant 8 bits of the fixed
+//  microword, which was added as an additional input to the module.
+
+assign En_RU = (En & (CCSel[4:2] == 4'b001));
+
+always @(*)
+begin
+    case(CCSel[1:0])
+        2'b00 : RU <= {1'b0, Msk |  M};    // SMBx
+        2'b01 : RU <= {1'b0, Msk &  M};    // RMBx
+        2'b10 : RU <= {1'b0, Msk &  M};    // BBSx
+        2'b11 : RU <= {1'b0, Msk & ~M};    // BBRx
+    endcase
+end
+
+always @(*) RU_Valid <= En_RU;
 
 //  Load/Store/Transfer Enable
 
@@ -669,19 +712,26 @@ end
 
 always @(*)
 begin
-    case({LU_Valid, AU_Valid, DU_Valid, SU_Valid, BU_Valid})
-        5'b10000 : {COut, Out} <= LU;   // ORA/AND/EOR
-        5'b01000 : {COut, Out} <= AU;   // INC/DEC/INX/DEX/INY/DEY/CMP/ADC/SBC
-        5'b00100 : {COut, Out} <= DU;   // ADC/SBC (BCD-Only)
-        5'b00010 : {COut, Out} <= SU;   // ASL/LSR/ROL/ROR
-        5'b00001 : {COut, Out} <= BU;   // BIT/TRB/TSB
-        default  : {COut, Out} <= LST;  // Load/Store/Transfer Operations
+    case({LU_Valid, AU_Valid, DU_Valid, SU_Valid, BU_Valid, RU_Valid})
+        6'b100000 : {COut, Out} <= LU;   // ORA/AND/EOR
+        6'b010000 : {COut, Out} <= AU;   // INC/DEC/INX/DEX/INY/DEY/CMP/ADC/SBC
+        6'b001000 : {COut, Out} <= DU;   // ADC/SBC (BCD-Only)
+        6'b000100 : {COut, Out} <= SU;   // ASL/LSR/ROL/ROR
+        6'b000010 : {COut, Out} <= BU;   // BIT/TRB/TSB
+        6'b000001 : {COut, Out} <= RU;   // RMBx, SMBx
+        default   : {COut, Out} <= LST;  // Load/Store/Transfer Operations
     endcase
 end
 
 //  Assign ALU (Result) Valid Output (removed pipeline register 12B04, mam)
 
-assign Valid = |{LU_Valid, AU_Valid, DU_Valid, SU_Valid, BU_Valid, LST_En};
+assign Valid = |{LU_Valid, 
+                 AU_Valid,
+                 DU_Valid,
+                 SU_Valid,
+                 BU_Valid,
+                 RU_Valid,
+                 LST_En   };
 
 //  Condition Code Output
 
@@ -691,6 +741,9 @@ begin
         CC_Out <= #1 1;
     else
         case(CCSel)
+            pBBR    : CC_Out <= |RU;    // Added for Rockwell instructions
+            pBBS    : CC_Out <= |RU;    // Added for Rockwell instructions
+            //
             pCC     : CC_Out <= ~C;
             pCS     : CC_Out <=  C;
             pNE     : CC_Out <= ~Z;

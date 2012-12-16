@@ -75,7 +75,7 @@ synthesize and implement it in a Spartan-3AN FPGA.
 M65C02-Test-Programs
 --------------------
 
-    M65C02_Tst2.a65         - Kingswood A65 assembler source code test program
+    M65C02_Tst3.a65         - Kingswood A65 assembler source code test program
         M65C02.bin          - M65C02_Tst2.a65 output of the Kingswood assembler
         M65C02.txt          - M65C02_Tst2.a65 ASCII hex output of bin2txt.exe
     M65C02_Tst.A65          - First test pgm: jmps, branches, stk ops, transfers
@@ -85,7 +85,7 @@ Memory-Images
 
     M65C02_Decoder_ROM.coe  - M65C02 core microprogram ALU control fields
     M65C02_uPgm_V3a.coe     - M65C02 core microprogram (Addressing mode control)
-    M65C02_Tst2.txt         - Memory initialization file for M65C02 test program
+    M65C02_Tst3.txt         - Memory initialization file for M65C02 test program
 
 Microprogram-Sources
 --------------------

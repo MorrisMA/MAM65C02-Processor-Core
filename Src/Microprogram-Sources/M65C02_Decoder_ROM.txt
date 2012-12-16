@@ -1,6 +1,6 @@
 header
 Project: M65C02_Decoder_ROM
-File Revision: 0014
+File Revision: 0015
 Author(s): Michael A. Morris
 Description: M65C02 Instruction Decoder ROM
 endh
@@ -114,6 +114,10 @@ endh
 --                          instructions. Corrected the mode of the PLA instruc-
 --                          tion from INT to STK.
 --
+--  0015    12L13   mam     Completed addition of the Rockwell RMBx, SMBx, BBRx,
+--                          and BBSx instruction. All 32 opcodes added into the
+--                          instruction decode, and RMBx and SMBX marked as RMW.
+--
 --------------------------------------------------------------------------------
 -- Instruction (Next Address and Data) Field
 --------------------------------------------------------------------------------
@@ -164,8 +168,8 @@ ADC         .equ    4   -- ALU <= Q +  M + C; N <= ALU[7]; Z <= ~|ALU;
 --                                            V <= OVF;    C <= COut;
 SBC         .equ    5   -- ALU <= Q + ~M + C; N <= ALU[7]; Z <= ~|ALU;
 --                                            V <= OVF;    C <= COut;
-INC         .equ    6   -- ALU <= Q +  1 + 0; N <= ALU[7]; Z <= ~|ALU; C <= COut
-DEC         .equ    7   -- ALU <= Q + ~1 + 1; N <= ALU[7]; Z <= ~|ALU; C <= COut
+INC         .equ    6   -- ALU <= Q +  1 + 0; N <= ALU[7]; Z <= ~|ALU;
+DEC         .equ    7   -- ALU <= Q + ~1 + 1; N <= ALU[7]; Z <= ~|ALU;
 
 --  Shift Unit Operations
 
@@ -228,8 +232,13 @@ OS_M        .equ    7   -- Output M (Transfer)
 
 --------------------------------------------------------------------------------
 --  Condition Code Operation/Output Select Definitions
---      Note: CC_Out = 1 unless (CCSel[4:3] != 2'b01)
+--      Note: CC_Out = 1 unless ((CCSel[4:3] != 2'b01) | ((CCSel[4:1] == 3))
 
+SMBx        .equ    4   -- Rockwell SMBx
+RMBx        .equ    5   -- Rockwell RMBx
+BBSx        .equ    6   -- Rockwell BBSx
+BBRx        .equ    7   -- Rockwell BBRx
+--
 CC          .equ    8   -- CC_Out = ~C;
 CS          .equ    9   -- CC_Out =  C;
 NE          .equ    10  -- CC_Out = ~Z;
@@ -268,7 +277,7 @@ _start:     .org    0
     MEM     1,TSB,QS_A,0,0,0,WS_P,    ,Z   ,0x04      -- 04: TSB dp
     MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x05      -- 05: ORA dp
     MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x06      -- 06: ASL dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x07      -- 07: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xFE      -- 07: RMB0 dp
     STK     0,XFR,QS_A,0,0,0,    ,OS_P,    ,0x08      -- 08: PHP
     MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x09      -- 09: ORA #imm
     INT     0,ASL,QS_A,0,0,0,WS_A,    ,NZC ,0x0A      -- 0A: ASL A
@@ -276,7 +285,7 @@ _start:     .org    0
     MEM     1,TSB,QS_A,0,0,0,WS_P,    ,Z   ,0x0C      -- 0C: TSB abs
     MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x0D      -- 0D: ORA abs
     MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x0E      -- OE: ASL abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x0F      -- 0F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x01      -- 0F: BBR0 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -287,7 +296,7 @@ _start:     .org    0
     MEM     1,TRB,QS_M,0,0,0,WS_P,    ,Z   ,0x14      -- 14: TRB dp
     MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x15      -- 15: ORA dp,X
     MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x16      -- 16: ASL dp,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x17      -- 17: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xFD      -- 17: RMB1 dp
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,CLC ,0x18      -- 18: CLC
     MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x19      -- 19: ORA abs,Y
     INT     0,INC,QS_A,1,0,1,WS_A,    ,NZ  ,0x1A      -- 1A: INC A
@@ -295,7 +304,7 @@ _start:     .org    0
     MEM     1,TRB,QS_A,0,0,0,WS_P,    ,Z   ,0x1C      -- 1C: TRB abs
     MEM     0,ORA,QS_A,0,0,0,WS_A,    ,NZ  ,0x1D      -- 1D: ORA abs,X
     MEM     1,ASL,QS_M,0,0,0,WS_P,    ,NZC ,0x1E      -- 1E: ASL abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x1F      -- 1F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x02      -- 1F: BBR1 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -306,7 +315,7 @@ _start:     .org    0
     MEM     0,BIT,QS_A,0,0,0,WS_P,    ,NVZ ,0x24      -- 24: BIT dp
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x25      -- 25: AND dp
     MEM     1,ROL,QS_M,0,0,0,WS_P,    ,NZC ,0x26      -- 26: ROL dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x27      -- 27: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xFB      -- 27: RMB2 dp
     STK     0,XFR,QS_A,0,0,0,WS_P,    ,PSW ,0x28      -- 28: PLP
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x29      -- 29: AND #imm
     INT     0,ROL,QS_A,0,0,0,WS_A,    ,NZC ,0x2A      -- 2A: ROL A
@@ -314,7 +323,7 @@ _start:     .org    0
     MEM     0,BIT,QS_A,0,0,0,WS_P,    ,NVZ ,0x2C      -- 2C: BIT abs
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x2D      -- 2D: AND abs
     MEM     1,ROL,QS_M,0,0,0,WS_P,    ,NZC ,0x2E      -- 2E: ROL abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x2F      -- 2F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x04      -- 2F: BBR2 db,rel
 
 --------------------------------------------------------------------------------
 
@@ -325,7 +334,7 @@ _start:     .org    0
     MEM     0,BIT,QS_A,0,0,0,WS_P,    ,NVZ ,0x34      -- 34: BIT dp,X
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x35      -- 35: AND dp,X
     MEM     1,ROL,QS_M,0,0,0,WS_P,    ,NZC ,0x36      -- 36: ROL dp,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x37      -- 37: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xF7      -- 37: RMB3 dp
     INT     0,AND,QS_A,0,0,0,WS_P,    ,SEC ,0x38      -- 38: SEC
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x39      -- 39: AND abs,Y
     INT     0,DEC,QS_A,1,1,1,WS_A,    ,NZ  ,0x3A      -- 3A: DEC A
@@ -333,7 +342,7 @@ _start:     .org    0
     MEM     0,BIT,QS_A,0,0,0,WS_P,    ,NVZ ,0x3C      -- 3C: BIT abs,X
     MEM     0,AND,QS_A,0,0,0,WS_A,    ,NZ  ,0x3D      -- 3D: AND abs,X
     MEM     1,ROL,QS_M,0,0,0,WS_P,    ,NZC ,0x3E      -- 3E: ROL abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x3F      -- 3F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x08      -- 3F: BBR3 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -344,7 +353,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x44      -- 44: NOP
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x45      -- 45: EOR dp
     MEM     1,LSR,QS_M,0,0,0,WS_P,    ,NZC ,0x46      -- 46: LSR dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x47      -- 47: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xEF      -- 47: RMB4 dp
     STK     0,XFR,QS_A,0,0,0,    ,OS_A,    ,0x48      -- 48: PHA
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x49      -- 49: EOR #imm
     INT     0,LSR,QS_A,0,0,0,WS_A,    ,NZC ,0x4A      -- 4A: LSR A
@@ -352,7 +361,7 @@ _start:     .org    0
     JMP     0,XFR,QS_A,0,0,0,    ,    ,    ,0x4C      -- 4C: JMP abs
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x4D      -- 4D: EOR abs
     MEM     1,LSR,QS_M,0,0,0,WS_P,    ,NZC ,0x4E      -- 4E: LSR abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x4F      -- 4F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x10      -- 4F: BBR4 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -363,7 +372,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x54      -- 54: NOP
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x55      -- 55: EOR dp,X
     MEM     1,LSR,QS_M,0,0,0,WS_P,    ,NZC ,0x56      -- 56: LSR dp,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x57      -- 57: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xDF      -- 57: RMB5 dp
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,CLI ,0x58      -- 58: CLI
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x59      -- 59: EOR abs,Y
     STK     0,XFR,QS_A,0,0,0,    ,OS_Y,    ,0x5A      -- 5A: PHY
@@ -371,7 +380,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x5C      -- 5C: NOP
     MEM     0,EOR,QS_A,0,0,0,WS_A,    ,NZ  ,0x5D      -- 5D: EOR abs,X
     MEM     1,LSR,QS_M,0,0,0,WS_P,    ,NZC ,0x5E      -- 5E: LSR abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x5F      -- 5F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x20      -- 5F: BBR5 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -382,7 +391,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Z,    ,0x64      -- 64: STZ dp
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x65      -- 65: ADC dp
     MEM     1,ROR,QS_M,0,0,0,WS_P,    ,NZC ,0x66      -- 66: ROR dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x67      -- 67: NOP
+    INV     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0xBF      -- 67: RMB6 dp
     STK     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0x68      -- 68: PLA
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x69      -- 69: ADC #imm
     MEM     0,ROR,QS_A,0,0,0,WS_A,    ,NZC ,0x6A      -- 6A: ROR A
@@ -390,7 +399,7 @@ _start:     .org    0
     JMP     0,XFR,QS_A,0,0,0,    ,    ,    ,0x6C      -- 6C: JMP (abs)
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x6D      -- 6D: ADC abs
     MEM     1,ROR,QS_M,0,0,0,WS_P,    ,NZC ,0x6E      -- 6E: ROR abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x6F      -- 6F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x40      -- 6F: BBR6 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -401,7 +410,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Z,    ,0x74      -- 74: STZ dp,X
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x75      -- 75: ADC dp,X
     MEM     1,ROR,QS_M,0,0,0,WS_P,    ,NZC ,0x76      -- 76: ROR dp,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x77      -- 77: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,RMBx,0x7F      -- 77: RMB7 dp
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,SEI ,0x78      -- 78: SEI
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x79      -- 79: ADC abs,Y
     STK     0,XFR,QS_M,0,0,0,WS_Y,    ,NZ  ,0x7A      -- 7A: PLY
@@ -409,7 +418,7 @@ _start:     .org    0
     JMP     0,XFR,QS_A,0,0,0,    ,    ,    ,0x7C      -- 7C: JMP (abs,X)
     MEM     0,ADC,QS_A,0,0,0,WS_A,    ,NVZC,0x7D      -- 7D: ADC abs,X
     MEM     1,ROR,QS_M,0,0,0,WS_P,    ,NZC ,0x7E      -- 7E: ROR abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x7F      -- 7F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBRx,0x80      -- 7F: BBR7 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -420,7 +429,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Y,    ,0x84      -- 84: STY dp
     MEM     0,XFR,QS_A,0,0,0,    ,OS_A,    ,0x85      -- 85: STA dp
     MEM     0,XFR,QS_A,0,0,0,    ,OS_X,    ,0x86      -- 86: STX dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x87      -- 87: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x01      -- 87: SMB0 dp
     INT     0,DEC,QS_Y,1,1,1,WS_Y,OS_Y,NZ  ,0x88      -- 88: DEY
     MEM     0,BIT,QS_A,0,0,0,WS_P,    ,Z   ,0x89      -- 89: BIT #imm
     INT     0,XFR,QS_A,0,0,0,WS_A,OS_X,NZ  ,0x8A      -- 8A: TXA
@@ -428,7 +437,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Y,    ,0x8C      -- 8C: STY abs
     MEM     0,XFR,QS_A,0,0,0,    ,OS_A,    ,0x8D      -- 8D: STA abs
     MEM     0,XFR,QS_A,0,0,0,    ,OS_X,    ,0x8E      -- 8E: STX abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x8F      -- 8F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x01      -- 8F: BBS0 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -439,7 +448,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Y,    ,0x94      -- 94: STY dp,X
     MEM     0,XFR,QS_A,0,0,0,    ,OS_A,    ,0x95      -- 95: STA dp,X
     MEM     0,XFR,QS_A,0,0,0,    ,OS_X,    ,0x96      -- 96: STX dp,Y
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x97      -- 97: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x02      -- 97: SMB1 dp
     INT     0,XFR,QS_A,0,0,0,WS_A,OS_Y,NZ  ,0x98      -- 98: TYA
     MEM     0,XFR,QS_A,0,0,0,    ,OS_A,    ,0x99      -- 99: STA abs,Y
     INT     0,XFR,QS_A,0,0,0,WS_S,OS_X,    ,0x9A      -- 9A: TXS
@@ -447,7 +456,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Z,    ,0x9C      -- 9C: STZ abs
     MEM     0,XFR,QS_A,0,0,0,    ,OS_A,    ,0x9D      -- 9D: STA abs,X
     MEM     0,XFR,QS_A,0,0,0,    ,OS_Z,    ,0x9E      -- 9E: STZ abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0x9F      -- 9F: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x02      -- 9F: BBS1 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -458,7 +467,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,WS_Y,    ,NZ  ,0xA4      -- A4: LDY dp
     MEM     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0xA5      -- A5: LDA dp
     MEM     0,XFR,QS_A,0,0,0,WS_X,    ,NZ  ,0xA6      -- A6: LDX dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xA7      -- A7: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x04      -- A7: SMB2 dp
     INT     0,XFR,QS_A,0,0,0,WS_Y,OS_A,NZ  ,0xA8      -- A8: TAY
     MEM     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0xA9      -- A9: LDA #imm
     INT     0,XFR,QS_A,0,0,0,WS_X,OS_A,NZ  ,0xAA      -- AA: TAX
@@ -466,7 +475,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,WS_Y,    ,NZ  ,0xAC      -- AC: LDY abs
     MEM     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0xAD      -- AD: LDA abs
     MEM     0,XFR,QS_A,0,0,0,WS_X,    ,NZ  ,0xAE      -- AE: LDX abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xAF      -- AF: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x04      -- AF: BBS2 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -477,7 +486,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,WS_Y,    ,NZ  ,0xB4      -- B4: LDY dp,X
     MEM     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0xB5      -- B5: LDA dp,X
     MEM     0,XFR,QS_A,0,0,0,WS_X,    ,NZ  ,0xB6      -- B6: LDX dp,Y
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xB7      -- B7: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x08      -- B7: SMB3 dp
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,CLV ,0xB8      -- B8: CLV
     MEM     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0xB9      -- B9: LDA abs,Y
     INT     0,XFR,QS_A,0,0,0,WS_X,OS_S,NZ  ,0xBA      -- BA: TSX
@@ -485,7 +494,7 @@ _start:     .org    0
     MEM     0,XFR,QS_A,0,0,0,WS_Y,    ,NZ  ,0xBC      -- BC: LDY abs,X
     MEM     0,XFR,QS_A,0,0,0,WS_A,    ,NZ  ,0xBD      -- BD: LDA abs,X
     MEM     0,XFR,QS_A,0,0,0,WS_X,    ,NZ  ,0xBE      -- BE: LDX abs,Y
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xBF      -- BF: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x08      -- BF: BBS3 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -496,7 +505,7 @@ _start:     .org    0
     MEM     0,CMP,QS_Y,0,1,1,WS_P,    ,NZC ,0xC4      -- C4: CPY dp
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xC5      -- C5: CMP dp
     MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xC6      -- C6: DEC dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xC7      -- C7: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x10      -- C7: SMB4 dp
     INT     0,INC,QS_Y,1,0,1,WS_Y,    ,NZ  ,0xC8      -- C8: INY
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xC9      -- C9: CMP #imm
     INT     0,DEC,QS_X,1,1,1,WS_X,    ,NZ  ,0xCA      -- CA: DEX
@@ -504,7 +513,7 @@ _start:     .org    0
     MEM     0,CMP,QS_Y,0,1,1,WS_P,    ,NZC ,0xCC      -- CC: CPY abs
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xCD      -- CD: CMP abs
     MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xCE      -- CE: DEC abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xCF      -- CF: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x10      -- CF: BBS4 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -515,7 +524,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xD4      -- D4: NOP
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xD5      -- D5: CMP dp,X
     MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xD6      -- D6: DEC dp,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xD7      -- D7: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x20      -- D7: SMB5 dp
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,CLD ,0xD8      -- D8: CLD
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xD9      -- D9: CMP abs,Y
     STK     0,XFR,QS_A,0,0,0,    ,OS_X,    ,0xDA      -- DA: PHX
@@ -523,7 +532,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDC      -- DC: NOP
     MEM     0,CMP,QS_A,0,1,1,WS_P,    ,NZC ,0xDD      -- DD: CMP abs,X
     MEM     1,DEC,QS_M,1,1,1,WS_P,    ,NZ  ,0xDE      -- DE: DEC abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xDF      -- DF: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x20      -- DF: BBS5 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -534,7 +543,7 @@ _start:     .org    0
     MEM     0,CMP,QS_X,0,1,1,WS_P,    ,NZC ,0xE4      -- E4: CPX dp
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xE5      -- E5: SBC dp
     MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xE6      -- E6: INC dp
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xE7      -- E7: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x40      -- E7: SMB6 dp
     INT     0,INC,QS_X,1,0,1,WS_X,    ,NZ  ,0xE8      -- E8: INX
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xE9      -- E9: SBC #imm
     INT     0,XFR,QS_A,0,0,0,    ,    ,    ,0xEA      -- EA: NOP
@@ -542,7 +551,7 @@ _start:     .org    0
     MEM     0,CMP,QS_X,0,1,1,WS_P,    ,NZC ,0xEC      -- EC: CPX abs
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xED      -- ED: SBC abs
     MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xEE      -- EE: INC abs
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xEF      -- EF: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x40      -- EF: BBS6 dp,rel
 
 --------------------------------------------------------------------------------
 
@@ -553,7 +562,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xF4      -- F4: NOP
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xF5      -- F5: SBC dp,X
     MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xF6      -- F6: INC dp,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xF7      -- F7: NOP
+    MEM     1,XFR,QS_M,0,0,0,    ,    ,SMBx,0x80      -- F7: SMB7 dp
     INT     0,XFR,QS_A,0,0,0,WS_P,    ,SED ,0xF8      -- F8: SED
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xF9      -- F9: SBC abs,Y
     STK     0,XFR,QS_M,0,0,0,WS_X,    ,NZ  ,0xFA      -- FA: PLX
@@ -561,7 +570,7 @@ _start:     .org    0
     INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xFC      -- FC: NOP
     MEM     0,SBC,QS_A,0,1,0,WS_A,    ,NVZC,0xFD      -- FD: SBC abs,X
     MEM     1,INC,QS_M,1,0,1,WS_P,    ,NZ  ,0xFE      -- FE: INC abs,X
-    INV     0,XFR,QS_A,0,0,0,    ,    ,    ,0xFF      -- FF: NOP
+    JMP     0,XFR,QS_M,0,0,0,    ,    ,BBSx,0x80      -- FF: BBS7 dp,rel
 
 --------------------------------------------------------------------------------
 

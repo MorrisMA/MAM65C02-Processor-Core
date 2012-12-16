@@ -57,14 +57,65 @@
 ;                                   To make this change need to add code to
 ;                                   initialize page 0, 1, and 2 RAM locations.
 ;
+;   Modified 15-Dec-2012    mam     Modified to remove Rockwell instruction op-
+;                                   codes from the NOP/Invalid instruction list.
+;
             title   "M65C02_Core Test Program - all instructions"
-;
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Define macros for the Rockwell instructions
+;;
+RMBx        macro   BitNum, ZP
+            db      ((BitNum+0)*16)+7
+            db      ZP
+            endm
+;;
+SMBx        macro   BitNum, ZP
+            db      ((BitNum+8)*16)+7
+            db      ZP
+            endm
+;;          
+BBRx        macro   BitNum, ZP, Dst
+LBL\?       db      ((BitNum+0)*16)+15
+            db      ZP
+            if(Dst < LBL\?+3)
+            db      -(Dst-LBL\?+1)
+            else
+            db      (Dst-LBL\?-3)
+            endif
+            endm
+;;
+BBSx        macro   BitNum, ZP, Dst
+LBL\?       db      ((BitNum+8)*16)+15
+            db      ZP
+            if(Dst < LBL\?+3)
+            db      -(Dst-LBL\?+1)
+            else
+            db      (Dst-LBL\?-3)
+            endif
+            endm
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Define macros for the W65802/65816 instructions implemented in W65C02S
+;;
+STP         macro
+            db      $DB
+            endm
+;;
+WAI         macro
+            db      $CB
+            endm
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 ROM_Start   equ     $F800       ;; Boot "ROM" Start Address
-;
+;;
 NMI_Vector  equ     $FFFA       ;; Normal Non-maskable Interrupt Vector
 RST_Vector  equ     $FFFC       ;; Normal Reset Vector
 IRQ_Vector  equ     $FFFE       ;; Normal Maskable Interrupt or BRK Vector
-;
+;;
 IRQ_On      equ     $FFF8       ;; Set External Interrupt Request
 IRQ_Off     equ     $FFF9       ;; Clr External Interrupt Request
 ;;
@@ -750,13 +801,13 @@ Continue    nop                 ;; Imp, A   = 0x00, P = 0x26
             db      $03, $13, $23, $33, $43, $53, $63, $73
             db      $83, $93, $A3, $B3, $C3, $D3, $E3, $F3
             db      $44, $54, $D4, $F4
-            db      $07, $17, $27, $37, $47, $57, $67, $77  ;; RMBx dp
-            db      $87, $97, $A7, $B7, $C7, $D7, $E7, $F7  ;; SMBx dp
+;;            db      $07, $17, $27, $37, $47, $57, $67, $77  ;; RMBx dp
+;;            db      $87, $97, $A7, $B7, $C7, $D7, $E7, $F7  ;; SMBx dp
             db      $0B, $1B, $2B, $3B, $4B, $5B, $6B, $7B
             db      $8B, $9B, $AB, $BB, $EB, $FB
             db      $5C, $DC, $FC
-            db      $0F, $1F, $2F, $3F, $4F, $5F, $6F, $7F  ;; BBRx dp,rel
-            db      $8F, $9F, $AF, $BF, $CF, $DF, $EF, $FF  ;; BBSx dp,rel
+;;            db      $0F, $1F, $2F, $3F, $4F, $5F, $6F, $7F  ;; BBRx dp,rel
+;;            db      $8F, $9F, $AF, $BF, $CF, $DF, $EF, $FF  ;; BBSx dp,rel
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -869,6 +920,71 @@ IRQ_Tst4:   sei
             cmp     ($ff),y         ;; both pointers (after indexing) -> Return
 ;;
             bne     *
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;  Test Rockwell Instructions
+;;
+            stz     $80             ;; ZP location for Rockwell Instruction Test
+;;
+            SMBx    0,$80
+            BBRx    0,$80,$
+            RMBx    0,$80
+            BBSx    0,$80,$
+;;
+            SMBx    1,$80
+            BBRx    1,$80,$
+            RMBx    1,$80
+            BBSx    1,$80,$
+;;
+            SMBx    2,$80
+            BBRx    2,$80,$
+            RMBx    2,$80
+            BBSx    2,$80,$
+;;
+            SMBx    3,$80
+            BBRx    3,$80,$
+            RMBx    3,$80
+            BBSx    3,$80,$
+;;
+            SMBx    4,$80
+            BBRx    4,$80,$
+            RMBx    4,$80
+            BBSx    4,$80,$
+;;
+            SMBx    5,$80
+            BBRx    5,$80,$
+            RMBx    5,$80
+            BBSx    5,$80,$
+;;
+            SMBx    6,$80
+            BBRx    6,$80,$
+            RMBx    6,$80
+            BBSx    6,$80,$
+;;
+            SMBx    7,$80
+            BBRx    7,$80,$
+            RMBx    7,$80
+            BBSx    7,$80,$
+;;
+            lda     #$ff
+            sta     $80
+;;
+            BBSx    7,$80,MSB_Set
+Clr_MSB:
+            RMBx    7,$80
+            BBRx    7,$80,MSB_Clr
+MSB_Set     bra     Clr_MSB
+MSB_Clr:
+            WAI
+            nop     4
+            stz     IRQ_On
+            nop     4
+            cli
+            WAI
+            sei  
+            stz     IRQ_Off
+;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;  Prepare Registers for looping to start of the test program

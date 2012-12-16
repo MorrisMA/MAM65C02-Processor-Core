@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0017
+File Revision: 0018
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -217,6 +217,11 @@ endh
 --                          NMI and IRQ/BRK. Also added indirect jump for RST,
 --                          but without pushes to the stack required for other
 --                          exceptions.
+--
+--  0018    12L15   MAM     Added Rockwell instructions. RMBx/SMBx instructions
+--                          use to the _RMW_DP microroutine to execute. The BBRx
+--                          and BBSx instructions use a new microroutine to exe-
+--                          cute: _BByx_dp_rel. 
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -902,6 +907,14 @@ _RMW_AbsY:
     BMW     _RMW,1,0, MAR,, WR,,,WE_R                   -- Write to Abs,Y
 
 --------------------------------------------------------------------------------
+--  Rockwell BBRx/BBSx dp,rel instructions
+--------------------------------------------------------------------------------
+
+_BByx_dp_rel:
+    FTCH    $,1,0, DPN,, RD, OP1                        -- Read from DP
+    BRV0    _Nxt,1,0,, Rel, IF, OP1                     -- Read rel value
+
+--------------------------------------------------------------------------------
 --  End of Microprogram Routines for Normal Instructions
 --------------------------------------------------------------------------------
 
@@ -912,10 +925,10 @@ _End_uPgm:
 --------------------------------------------------------------------------------
 
 _WAI:       .org    252     -- Set up 4-way table for WAI instruction
-    BMW     _WAI,0,1        -- No external interrupts asserted
-    BRV0    _Int,0,1        -- Int asserted by NMI, do NMI interrupt
-    BRV0    _Nxt,0,1        -- xIRQ asserted with IRQ_Msk asserted, continue
-    BRV0    _Int,0,1        -- Int asserted by xIRQ, do IRQ interrupt
+    BMW     _WAI,0,0        -- No external interrupts asserted
+    BRV0    _Int,0,0        -- Int asserted by NMI, do NMI interrupt
+    BRV0    _Nxt,0,0        -- xIRQ asserted with IRQ_Msk asserted, continue
+    BRV0    _Int,0,0        -- Int asserted by xIRQ, do IRQ interrupt
 
 _IDEC_Start:    .org    256
 
@@ -1198,41 +1211,41 @@ _INC_dp:
 _INC_dpX:
     BRV0    _RMW_DPX,1,0,, Pls, IF, OP1             -- Read DP
 --------------------------------------------------------------------------------
--- Row 7 : 0x07-0xF7
+-- Row 7 : 0x07-0xF7 (Rockwell Instructions: RMBx/SMBx dp)
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
-_NOP_07:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_17:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_27:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_37:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_47:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_57:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_67:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_77:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_87:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_97:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_A7:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_B7:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_C7:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_D7:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_E7:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_F7:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+_RMB0_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB1_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB2_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB3_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB4_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB5_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB6_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_RMB7_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB0_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB1_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB2_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB3_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB4_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB5_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB6_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
+_SMB7_dp:
+    BRV0    _RMW_DP,1,0,, Pls, IF, OP1              -- Read DP
 --------------------------------------------------------------------------------
 -- Row 8 : 0x08-0xF8
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
@@ -1370,9 +1383,9 @@ _NOP_AB:
 _NOP_BB:
     BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
 _WAI_CB:
-    BRV0    _WAI,1,3                                -- Wait for Interrupt
+    BRV0    _WAI,0,0                                -- Wait for Interrupt
 _STP_DB:
-    BRV0    $,1,3                                   -- Stop execution
+    BRV0    $,0,0                                   -- Stop execution
 _NOP_EB:
     BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
 _NOP_FB:
@@ -1486,41 +1499,41 @@ _INC_abs:
 _INC_absX:
     BRV0    _RMW_AbsX,1,0,, Pls, IF, OP1            -- Read Dst Ptr Lo
 --------------------------------------------------------------------------------
--- Row F : 0x0F-0xFF
+-- Row F : 0x0F-0xFF (Rockwell Instructions: BBRx/BBSx dp,rel)
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 --------------------------------------------------------------------------------
-_NOP_0F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_1F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_2F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_3F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_4F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_5F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_6F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_7F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_8F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_9F:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_AF:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_BF:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_CF:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_DF:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_EF:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
-_NOP_FF:
-    BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
+_BBR0_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR1_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR2_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR3_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR4_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR5_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR6_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBR7_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS0_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS1_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS2_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS3_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS4_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS5_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS6_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
+_BBS7_dp_rel:
+    BRV0    _BByx_dp_rel,1,0,, Pls, IF, OP1         -- Read DP
 --------------------------------------------------------------------------------
 --  End of Instruction Decode Table
 --------------------------------------------------------------------------------

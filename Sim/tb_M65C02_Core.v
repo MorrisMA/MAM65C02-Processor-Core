@@ -89,6 +89,7 @@ module tb_M65C02_Core;
 
     wire IRQ_Msk;               // Interrupt Mask Bit from P
     reg  Int;                   // Interrupt Request
+    reg  xIRQ;                  // Maskable Interrupt Request
     reg  [15:0] Vector;         // Interrupt Vector
 
     wire Done;                  // Instruction Complete
@@ -136,7 +137,7 @@ module tb_M65C02_Core;
     reg     [ 7:0] i, j;            // loop counters
     
     reg     [((5*8) - 1):0] Op;     // Processor Mode Mnemonics String
-    reg     [((5*8) - 1):0] Opcode; // Opcode Mnemonics String
+    reg     [((6*8) - 1):0] Opcode; // Opcode Mnemonics String
     reg     [((9*8) - 1):0] AddrMd; // Addressing Mode Mnemonics String
 
 // Instantiate the Unit Under Test (UUT)
@@ -151,7 +152,7 @@ M65C02_Core #(
             
             .IRQ_Msk(IRQ_Msk), 
             .Int(Int),
-            .xIRQ(Int),            
+            .xIRQ(xIRQ),            
             .Vector(Vector), 
             
             .Done(Done),
@@ -226,7 +227,7 @@ M65C02_Base #(
             
             .IRQ_Msk(Ref_IRQ_Msk), 
             .Int(Int), 
-            .xIRQ(Int),            
+            .xIRQ(xIRQ),            
             .Vector(Vector), 
             
             .Done(Ref_Done),
@@ -382,7 +383,8 @@ end
 
 always @(*)
 begin
-    Int = ((IRQ_Msk) ? 0 : Sim_Int);
+    Int  = ((IRQ_Msk) ? 0 : (Sim_Int | (Mode == 3'b111)));
+    xIRQ = (Mode == 3'b111);
 end
 
 //  Count number of cycles and the number of instructions between between
