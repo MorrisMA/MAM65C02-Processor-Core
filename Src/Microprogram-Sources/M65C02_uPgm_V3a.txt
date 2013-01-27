@@ -16,12 +16,12 @@ endh
 --  information storage and retrieval system in violation of the license under
 --  which the source code is released.
 --
---  The souce code contained herein is free; it may be redistributed and/or
+--  The source code contained herein is free; it may be redistributed and/or
 --  modified in accordance with the terms of the GNU Lesser General Public
 --  License as published by the Free Software Foundation; either version 2.1 of
 --  the GNU Lesser General Public License, or any later version.
 --
---  The souce code contained herein is freely released WITHOUT ANY WARRANTY;
+--  The source code contained herein is freely released WITHOUT ANY WARRANTY;
 --  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 --  PARTICULAR PURPOSE. (Refer to the GNU Lesser General Public License for
 --  more details.)
@@ -232,7 +232,7 @@ endh
 --                          but without pushes to the stack required for other
 --                          exceptions.
 --
---  0018    12L15   MAM     Added Rockwell instructions. RMBx/SMBx instructions
+--  0019    12L15   MAM     Added Rockwell instructions. RMBx/SMBx instructions
 --                          use to the _RMW_DP microroutine to execute. The BBRx
 --                          and BBSx instructions use a new microroutine to exe-
 --                          cute: _BByx_dp_rel. 
@@ -625,7 +625,7 @@ _Brk:
 --------------------------------------------------------------------------------
 
 _JSR:
-    FTCH    $,0,1,,, IF, OP2                        -- Load Indirect Dst Ptr Lo
+    FTCH    $,0,1,,, IF, OP2                        -- Load Indirect Dst Ptr Hi
     FTCH    $,0,1, Stk,, WR, PCH, Psh               -- Push PC Hi
     BRV0    _Nxt,0,1, Stk, Jmp, WR, PCL, Psh        -- Push PC Lo
 

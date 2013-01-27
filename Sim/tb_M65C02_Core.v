@@ -9,12 +9,12 @@
 //  information storage and retrieval system in violation of the license under
 //  which the source code is released.
 //
-//  The souce code contained herein is free; it may be redistributed and/or 
+//  The source code contained herein is free; it may be redistributed and/or 
 //  modified in accordance with the terms of the GNU Lesser General Public
 //  License as published by the Free Software Foundation; either version 2.1 of
 //  the GNU Lesser General Public License, or any later version.
 //
-//  The souce code contained herein is freely released WITHOUT ANY WARRANTY;
+//  The source code contained herein is freely released WITHOUT ANY WARRANTY;
 //  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 //  PARTICULAR PURPOSE. (Refer to the GNU Lesser General Public License for
 //  more details.)
@@ -288,7 +288,7 @@ reg     RAM_WE;
 M65C02_RAM  #(
                 .pAddrSize(pRAM_AddrWidth),
                 .pDataSize(8),
-                .pFileName("M65C02_Tst3.txt")
+                .pFileName("M65C02_RAM.txt")
             ) RAM (
                 .Clk(Clk),
 //                .Ext(1'b1),     // 4 cycle memory
