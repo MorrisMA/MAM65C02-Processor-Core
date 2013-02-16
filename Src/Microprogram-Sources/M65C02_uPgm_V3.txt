@@ -1,13 +1,13 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0018
+File Revision: 0019
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
 
 --------------------------------------------------------------------------------
 --
---  Copyright 2011-2012 by Michael A. Morris, dba M. A. Morris & Associates
+--  Copyright 2011-2013 by Michael A. Morris, dba M. A. Morris & Associates
 --
 --  All rights reserved. The source code contained herein is publicly released
 --  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -221,7 +221,10 @@ endh
 --  0018    12L15   MAM     Added Rockwell instructions. RMBx/SMBx instructions
 --                          use to the _RMW_DP microroutine to execute. The BBRx
 --                          and BBSx instructions use a new microroutine to exe-
---                          cute: _BByx_dp_rel. 
+--                          cute: _BByx_dp_rel.
+--
+--  0019    13B16   MAM     Corrected state of Wait in the microcode for WAI. A 
+--                          cut and paste error from M65C02_uPgm_V3a.txt
 --
 --------------------------------------------------------------------------------
 --  Comments
@@ -925,10 +928,10 @@ _End_uPgm:
 --------------------------------------------------------------------------------
 
 _WAI:       .org    252     -- Set up 4-way table for WAI instruction
-    BMW     _WAI,0,0        -- No external interrupts asserted
-    BRV0    _Int,0,0        -- Int asserted by NMI, do NMI interrupt
-    BRV0    _Nxt,0,0        -- xIRQ asserted with IRQ_Msk asserted, continue
-    BRV0    _Int,0,0        -- Int asserted by xIRQ, do IRQ interrupt
+    BMW     _WAI,1,0        -- No external interrupts asserted
+    BRV0    _Int,1,0        -- Int asserted by NMI, do NMI interrupt
+    BRV0    _Nxt,1,0        -- xIRQ asserted with IRQ_Msk asserted, continue
+    BRV0    _Int,1,0        -- Int asserted by xIRQ, do IRQ interrupt
 
 _IDEC_Start:    .org    256
 
@@ -1383,7 +1386,7 @@ _NOP_AB:
 _NOP_BB:
     BRV3    $,1,3,, Pls, IF, IR                     -- Skip Invalid Instruction
 _WAI_CB:
-    BRV0    _WAI,0,0                                -- Wait for Interrupt
+    BRV0    _WAI,1,0                                -- Wait for Interrupt
 _STP_DB:
     BRV0    $,0,0                                   -- Stop execution
 _NOP_EB:
