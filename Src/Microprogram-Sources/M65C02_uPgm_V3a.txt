@@ -1,6 +1,6 @@
 header
 Project: M65C02_uP_ROM
-File Revision: 0019
+File Revision: 0020
 Author(s): Michael A. Morris
 Description: M65C02 Microprogram
 endh
@@ -235,7 +235,11 @@ endh
 --  0019    12L15   MAM     Added Rockwell instructions. RMBx/SMBx instructions
 --                          use to the _RMW_DP microroutine to execute. The BBRx
 --                          and BBSx instructions use a new microroutine to exe-
---                          cute: _BByx_dp_rel. 
+--                          cute: _BByx_dp_rel.
+--
+--  0020    13B23   MAM     Removed IF from first microword. Performs memory
+--                          read cycle not required to fetch vector value from
+--                          the reset vector. 
 --
 --------------------------------------------------------------------------------
 --  Comments

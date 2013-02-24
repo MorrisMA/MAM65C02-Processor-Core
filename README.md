@@ -1,7 +1,7 @@
 M65C02 Microprocessor Core
 =======================
 
-Copyright (C) 2012, Michael A. Morris <morrisma@mchsi.com>.
+Copyright (C) 2012-2013, Michael A. Morris <morrisma@mchsi.com>.
 All Rights Reserved.
 
 Released under LGPL.
@@ -93,7 +93,7 @@ and several memory initialization files:
     M65C02_Decoder_ROM.coe  - M65C02 core microprogram ALU control fields
     M65C02_uPgm_V3a.coe     - M65C02 core microprogram (sequence control)
 
-    M65C02.ucf              - User Constraints File: period and pin LOCs
+    M65C02_Core.ucf         - User Constraints File: period and pin LOCs
     M65C02.tcl              - Project settings file
     
     tb_M65C02_Core.v        - Completed core testbench with test RAM
@@ -211,5 +211,63 @@ the stack before fetching the vector and starting execution at that address.
 
 ####Release 2.4
 
-Release 2.4 incorporates the 32 Rockwell instruction opcodes and the WAI and STP
+Release 2.4 incorporates the 32 Rockwell instruction opcodes and the WAI and STP 
 instructions.
+
+####Release 2.5
+
+Release 2.5 makes some minor modifications to the M65C02 core module to allow 
+the output of some signals that allow the generation of interface signals such 
+as the active low Vector Pull output of the W65C02S microprocessor. In addition 
+to bringing out of these signals, Release 2.5 also provides an implementation of 
+a standalone microprocessor, or system-on-chip, which demonstrates how the 
+M65C02 can be used to provide 6502 processor. This implementation is composed of 
+the following files:
+
+    M65C02.v                - M65C02 microprocessor demonstration
+        ClkGen.xaw          - Xilinx Architecture Wizard clock generator file
+
+    M65C02.ucf              - User Constraints File: period and pin LOCs
+    M65C02.tcl              - Project settings file
+    
+    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
+
+The header of the M65C02.v module provides details of the differences between 
+then 65C02 microprocessor implementation represented by the M65C02.v and a 
+65C02 processor implementation as represented by the WDC W65C02S microprocessor. 
+
+The M65C02 implementation is targetted at an XC3S50A-4VQG100I FPGA. The User
+Constraints File (ucf) has been developed so that the resulting implementation
+can be used as a fully functional microprocessor when attached to I/O devices,
+SRAM (25ns or faster), and a NOR Flash device (4kB, 45ns or faster). 
+A development board is presently being developed to demonstrate the M65C02, and
+to provide a suitable platform for further development of the remaining FPGA 
+resources into a more complete system-on-chip based on the M65C02 core.
+
+The Xilinx ISE 10.1i SP3 synthesis results for the M65C02 are as follows:
+
+                                           Used Avail  %
+    Number of Slice Flip Flops              200 1408  14%   
+    Number of 4 input LUTs                  736 1408  52%   
+    Logic Distribution          
+
+    Number of occupied Slices               426  704  60%   
+        Number of Slices related logic      426  426 100%   
+        Number of Slices unrelated logic      0  426   0%   
+    Total Number of 4 input LUTs            745 1408  52%   
+        Number used as logic                735       
+        Number used as a route-thru           9       
+        Number used as Shift registers        1       
+    Number of bonded IOBs 
+        Number of bonded pads                53   68  77%   
+        IOB Flip Flops                       79       
+    Number of BUFGMUXs                        4   24  16%   
+    Number of DCMs                            1    2  50%   
+    Number of RAMB16BWEs                      2    3  66% 
+
+    Best Case Achievable:                13.213ns (0.037ns Setup, 1.023ns Hold)
+
+Please read the header and other comments for more details on the M65C02
+processor implementation. In particular, read and understand the discussion
+regarding the use of an FPGA-specific clock multiplexer to manage the memory
+cycle length in lieu of supporting wait state generation/insertion.

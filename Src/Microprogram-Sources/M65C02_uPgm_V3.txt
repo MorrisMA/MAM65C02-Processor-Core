@@ -612,7 +612,7 @@ ISR         .equ    1       -- Assert ISR: Clear D, Set I
 --  I   BA, Wt, En, NA, PC, IO, DI, SP, Reg_WE, ISR
 
 _Start: .org    0
-    BRV2    _Rst,1,1                            -- Load {OP2, OP1} with Vector
+    BRV2    _Rst,1,1,,, IF                      -- Load {OP2, OP1} with Vector
 _Rst:
     FTCH    $,1,0,,, RD, OP1                    -- Read Indirect Dst Ptr Lo
     FTCH    $,1,0, Nxt, Jmp, RD, OP2            -- Read Indirect Dst Ptr Hi

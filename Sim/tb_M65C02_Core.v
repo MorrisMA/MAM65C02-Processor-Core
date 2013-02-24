@@ -97,6 +97,7 @@ module tb_M65C02_Core;
     wire [2:0] Mode;            // Instruction Type/Mode
     wire RMW;                   // Read-Modify-Write Operation
     wire IntSvc;                // Interrupt Service Start
+    wire ISR;                   // Interrupt Vector Pull Start
     
     wire [1:0] MC;              // Microcycle State
     wire [1:0] MemTyp;          // Memory Access Type
@@ -121,6 +122,12 @@ module tb_M65C02_Core;
 	wire [7:0] OP2;             // Internal Register - Operand Register 2
     
     // Simulation Variables
+    
+    wire    Phi1O, Phi2O;           // M65C02 Clock Outputs
+    reg     [1:0] VP, Ref_VP;       // Vector Pull FFs
+    wire    nVP;
+    
+    reg     nWr;
     
     reg     Sim_Int    = 0;
 
@@ -160,12 +167,13 @@ M65C02_Core #(
             .Mode(Mode), 
             .RMW(RMW),
             .IntSvc(IntSvc),
+            .ISR(ISR),
 
             .MC(MC), 
             .MemTyp(MemTyp),
-//            .uLen(2'b11),     // Len 4 Cycle 
+            .uLen(2'b11),     // Len 4 Cycle 
 //            .uLen(2'b1),      // Len 2 Cycle 
-            .uLen(2'b0),      // Len 1 Cycle
+//            .uLen(2'b0),      // Len 1 Cycle
             .Wait(Wait), 
             .Rdy(Rdy),
             
@@ -197,6 +205,7 @@ M65C02_Core #(
     wire [2:0] Ref_Mode;        // Instruction Type/Mode
     wire Ref_RMW;               // Read-Modify-Write Operation
     wire Ref_IntSvc;            // Interrupt Service Start
+    wire Ref_ISR;               // Interrupt Pull Start Flag
     
     wire Ref_Rdy;               // Internal Ready
 
@@ -235,6 +244,7 @@ M65C02_Base #(
             .Mode(Ref_Mode), 
             .RMW(Ref_RMW),
             .IntSvc(Ref_IntSvc),
+            .ISR(Ref_ISR),
 
             .Rdy(Ref_Rdy),
             
@@ -268,12 +278,12 @@ M65C02_RAM  #(
                 .pFileName("M65C02_Tst3.txt")
             ) ROM (
                 .Clk(Clk),
-//                .Ext(1'b1),     // 4 cycle memory
-//                .ZP(1'b0),
+                .Ext(1'b1),     // 4 cycle memory
+                .ZP(1'b0),
 //                .Ext(1'b0),     // 2 cycle memory
 //                .ZP(1'b0),
-                .Ext(1'b0),   // 1 cycle memory
-                .ZP(1'b1),
+//                .Ext(1'b0),   // 1 cycle memory
+//                .ZP(1'b1),
                 .WE(ROM_WE),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),
                 .DI(DO),
@@ -291,12 +301,12 @@ M65C02_RAM  #(
                 .pFileName("M65C02_RAM.txt")
             ) RAM (
                 .Clk(Clk),
-//                .Ext(1'b1),     // 4 cycle memory
-//                .ZP(1'b0),
+                .Ext(1'b1),     // 4 cycle memory
+                .ZP(1'b0),
 //                .Ext(1'b0),     // 2 cycle memory
 //                .ZP(1'b0),
-                .Ext(1'b0),   // 1 cycle memory
-                .ZP(1'b1),
+//                .Ext(1'b0),   // 1 cycle memory
+//                .ZP(1'b1),
                 .WE(RAM_WE),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),
                 .DI(DO),
@@ -332,16 +342,49 @@ initial begin
     
 end
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 //  Clocks
 //
 
 always #5 Clk = ~Clk;
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+assign Phi1O =  MC[1];
+assign Phi2O = ~MC[1];
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Generate Bus Control Signals
+//
+
+assign C1 =  (MC == 2);
+assign C2 =   MC[1];
+assign C3 =  |MC;
+assign C4 = ~|MC;
+
+assign WE = ~IO_Op[1] & IO_Op[0] & ~C4;
+assign RE =  IO_Op[1];
+
+always @(negedge Clk) nWr <= #1 ((Rst) ? 1 : ~WE);
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Generate Vector Pull signals
+//
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        VP <= #1 0;
+    else if(Rdy)
+        VP <= #1 ((ISR) ? 2'b11 : {VP[0], 1'b0});
+end
+
+assign nVP = ~VP[1];
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 //  Generate Write Enables for "ROM" and "RAM" modules and multiplex DO onto DI
 //

@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright 2012 by Michael A. Morris, dba M. A. Morris & Associates
+//  Copyright 2012-2013 by Michael A. Morris, dba M. A. Morris & Associates
 //
 //  All rights reserved. The source code contained herein is publicly released
 //  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -287,6 +287,9 @@
 //                          The new field provides the bit mask needed for the
 //                          implementation of the Rockwell instructions.
 //
+//  3.21    13B16   MAM     Added ISR signal to port list to easily allow the
+//                          external logic to generate the vector pull signal.
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -351,6 +354,7 @@ module M65C02_Core #(
     output  [2:0] Mode,     // Mode - Instruction Type/Mode
     output  RMW,            // Read-Modify-Write Operation
     output  reg IntSvc,     // Interrupt Service Start Indicator
+    output  ISR,            // Interrupt Vector Pull Start Flag
     
     //  Processor Core Memory Controller Interface
     
@@ -484,7 +488,7 @@ wire    [1:0] DI_Op;                    // Memory Data Input Control Field
 wire    [1:0] DO_Op;                    // Memory Data Output Control Field
 wire    [1:0] Stk_Op;                   // Stack Pointer Control Field
 wire    [2:0] Reg_WE;                   // Register Write Enable Control Field
-wire    ISR;                            // Asserted during interrupt entry
+//wire    ISR;                            // Asserted during interrupt entry
 
 reg     En;                             // ALU Enable Control Field
 
