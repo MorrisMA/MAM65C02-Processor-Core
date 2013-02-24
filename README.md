@@ -233,7 +233,7 @@ the following files:
     tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
 
 The header of the M65C02.v module provides details of the differences between 
-then 65C02 microprocessor implementation represented by the M65C02.v and a 
+the 65C02 microprocessor implementation represented by the M65C02.v and a 
 65C02 processor implementation as represented by the WDC W65C02S microprocessor. 
 
 The M65C02 implementation is targetted at an XC3S50A-4VQG100I FPGA. The User
