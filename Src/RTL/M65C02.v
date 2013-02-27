@@ -148,6 +148,22 @@
 //  1.00    13B23   MAM     Completed the integration and testing of the M65C02
 //                          implementation as a standalone microprocessor.
 //
+//  2.00    13B25   MAM     Pulled into the M65C02 module the Boot ROM/RAM used
+//                          for testing. The test program will be used during
+//                          testing. For a final product, the ROM/RAM can be
+//                          loaded with a Monitor or other boot program. In this
+//                          manner, all of the block RAM of the target FPGA is
+//                          used, but maximum performance can be achieved. i.e.
+//                          no clock stretching is required when running from
+//                          block RAM. To perform the internal multiplexing of
+//                          input data bus, added a dedicated chip enable for
+//                          this device, BootROM, that controls the multiplexer.
+//                          Modified the clock multiplexer, now that internal
+//                          block RAM is used for the Boot/Monitor program, so
+//                          that SYS and ROM chip enables are used for the dy-
+//                          namic clock stretching circuit. Added a nWP input to
+//                          inhibit writes to the Boot/Monitor Block RAM.
+//
 // Additional Comments:
 //
 //  With regard to the W65C02S, the M65C02 microprocessor implementation differs
@@ -291,9 +307,9 @@ module M65C02 #(
 
     parameter pROM_AddrWidth = 12,          // System ROM Addres Width
 
-    parameter pM65C02_uPgm = "M65C02_uPgm_V3a.coe",
-    parameter pM65C02_IDec = "M65C02_Decoder_ROM.coe",
-    parameter pFileName    = "M65C02_Tst3.txt"
+    parameter pM65C02_uPgm  = "M65C02_uPgm_V3a.coe",
+    parameter pM65C02_IDec  = "M65C02_Decoder_ROM.coe",
+    parameter pBootROM_File = "M65C02_Tst3.txt"
 )(
     input   nRst,               // System Reset Input
     output  nRstO,              // Internal System Reset Output (OC w/ PU)
@@ -321,6 +337,8 @@ module M65C02 #(
     output  [15:0] A,           // External Memory Address Bus
     inout   [ 7:0] DB,          // External, Bidirectional Data Bus
     
+    input   nWP_In,             // Internal Boot/Monitor RAM write protect
+
     output  reg nWait,          // Driven low by Wait instruction (ASIC-only)
     
     output  nSel,               // SPI I/F Chip Select
@@ -369,7 +387,7 @@ wire    RMW;                    // M65C02 core Read-Modify-Write indicator
 wire    [1:0] MC;               // M65C02 core microcycle 
 wire    [1:0] IO_Op;            // M65C02 core I/O cycle type
 wire    [15:0] AO;              // M65C02 core Address Output
-reg     [ 7:0] DI;              // M65C02 core Data Input
+wire    [ 7:0] DI;              // M65C02 core Data Input
 wire    [ 7:0] DO;              // M65C02 core Data Output
 
 wire    C1, C2, C3, C4;         // Decoded microcycle states
@@ -380,7 +398,8 @@ reg     Sync_OFD;
 reg     nML_OFD;
 reg     RnW_OFD;
 
-wire    IO, SYS, ROM, RAM;      // Address decode signals
+wire    BootROM;                // Internal Block RAM/ROM for Boot/Monitor
+wire    IO, SYS, ROM, RAM;      // Address decode signals: CE[3]...CE[0]
 
 reg     [ 3:0] nCE_OFD;         // Decoded Chip Enable output (IOB registers)
 reg     [ 3:0] XA_OFD;          // Extended Address output (IOB registers)
@@ -389,6 +408,14 @@ reg     [15:0] AO_OFD;          // Address Output (IOB registers)
 reg     nOE_OFD, nWr_OFD;
 
 reg     [7:0] DO_OFD;
+reg     [7:0] DI_IFD;
+
+reg     nWP;                        // Boot/Monitor RAM write protect
+reg     WE_Boot;                    // Write Enable for the Boot/Monitor ROM
+reg     [(pROM_AddrWidth-2):0] iAO; // Internal address pipeline register
+reg     [7:0] Boot [((2**(pROM_AddrWidth-1))-1):0];  // Boot ROM/RAM (2k x 8)
+reg     [7:0] Boot_DO;              // Boot/Monitor ROM output data (absorbed)
+reg     [7:0] Boot_IFD;             // Boot/Monitor ROM output pipeline register
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -420,7 +447,7 @@ begin
     if(Rst_M65C02)
         ClkSel <= #1 0;
     else if(C1 | C3)
-        ClkSel <= #1 ((C3) ? 0 : IO);
+        ClkSel <= #1 ((C1) ? (SYS | ROM) : 0);
 end
 
 // BUFGMUX: Global Clock Buffer 2-to-1 MUX
@@ -586,7 +613,7 @@ M65C02_Core #(
                 
                 .IO_Op(IO_Op), 
                 .AO(AO), 
-                .DI(DI), 
+                .DI(DI),
                 .DO(DO),
                 
                 .A(), 
@@ -620,10 +647,11 @@ end
 
 //  Generate Chip Enables
 
-assign IO  = (&AO[15:13] &  AO[12]);
-assign SYS = (&AO[15:13] & ~AO[12]);
-assign ROM = (&AO[15:14] & ~AO[13]);
-assign RAM = ~&AO[15:14];
+assign BootROM =  &AO[15:11];               // 0xF800 - 0xFFFF =  2kB (Internal)
+assign IO      = (&AO[15:12] & ~AO[11]);    // 0xF000 - 0xF7FF =  2kB (External)
+assign SYS     = (&AO[15:13] & ~AO[12]);    // 0xE000 - 0xEFFF =  4kB (External)
+assign ROM     = (&AO[15:14] & ~AO[13]);    // 0xC000 - 0xDFFF =  8kB (External)
+assign RAM     = ~&AO[15:14];               // 0x0000 - 0xBFFF = 48kB (External)
 
 always @(posedge Clk)
 begin
@@ -710,7 +738,7 @@ assign RnW = ((BE) ? RnW_OFD : 1'bZ);
 //  Generate Asynchronous SRAM Read Strobe
 
 always @(posedge Clk) nOE_OFD <= #1 ((Rst | C3) ? 1 
-                                                : ((C1) ? ~IO_Op[1] 
+                                                : ((C1) ? (~IO_Op[1] | BootROM)
                                                         : nOE_OFD));
 
 assign nOE = ((BE) ? nOE_OFD : 1'bZ);
@@ -748,9 +776,72 @@ assign DB = ((BE & ~nWr) ? DO_OFD : 8'bZ);
 always @(posedge Clk)
 begin
     if(Rst)
-        DI <= #1 pNOP;
+        DI_IFD <= #1 pNOP;
     else if(C3)
-        DI <= #1 DB;
+        DI_IFD <= #1 DB;
 end
+
+//  Implement 2k x 8 internal Boot/Monitor ROM in Block RAM
+//      Allow writes so that the NMI, RST, and IRQ vectors can be changed.
+//      External active low write protect signal allows the writing to this RAM
+//      to be inhibited.
+
+//  Synchronize external Boot/Monitor ROM write protect
+
+always @(posedge Clk or posedge Rst) nWP <= #1 ((Rst) ? 0 : nWP_In);
+
+//  Generate a synchronous Boot/Monitor ROM write enable 
+
+always @(posedge Clk or posedge Rst)
+begin
+    if(Rst)
+        WE_Boot <= #1 0;
+    else
+        WE_Boot <= #1 (BootROM & (IO_Op == 1) & nWP & C1);
+end
+
+//  Capture the output address to break long delay path like done for output address
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        iAO <= #1 pRst_Vector;
+    else if(C1)
+        iAO <= #1 AO;
+end
+
+initial
+  $readmemh(pBootROM_File, Boot, 0, ((2**(pROM_AddrWidth-1))-1));
+  
+always @(posedge Clk)
+begin
+    if(WE_Boot)
+        Boot[iAO] <= #1 DO;
+        
+    Boot_DO <= #1 Boot[iAO];
+end
+
+//always @(posedge Clk)
+//begin
+//    if(WE_Boot)
+//        Boot[AO] <= #1 DO;
+//        
+//    Boot_DO <= #1 Boot[AO];
+//end
+
+//  Add pipeline register to break circular path through Address Generator
+
+always @(posedge Clk or posedge Rst)
+begin
+    if(Rst)
+        Boot_IFD <= #1 pNOP;
+    else if(C3)
+        Boot_IFD <= #1 Boot_DO;
+end
+
+//  Multiplex the External and Internal Data sources
+
+assign DI = ((BootROM) ? Boot_IFD : DI_IFD);
+//assign DI = ((BootROM) ? Boot_DO : DI_IFD);
 
 endmodule

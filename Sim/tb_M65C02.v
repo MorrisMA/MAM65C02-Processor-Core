@@ -1,3 +1,40 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Copyright 2012-2013 by Michael A. Morris, dba M. A. Morris & Associates
+//
+//  All rights reserved. The source code contained herein is publicly released
+//  under the terms and conditions of the GNU Lesser Public License. No part of
+//  this source code may be reproduced or transmitted in any form or by any
+//  means, electronic or mechanical, including photocopying, recording, or any
+//  information storage and retrieval system in violation of the license under
+//  which the source code is released.
+//
+//  The source code contained herein is free; it may be redistributed and/or 
+//  modified in accordance with the terms of the GNU Lesser General Public
+//  License as published by the Free Software Foundation; either version 2.1 of
+//  the GNU Lesser General Public License, or any later version.
+//
+//  The source code contained herein is freely released WITHOUT ANY WARRANTY;
+//  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+//  PARTICULAR PURPOSE. (Refer to the GNU Lesser General Public License for
+//  more details.)
+//
+//  A copy of the GNU Lesser General Public License should have been received
+//  along with the source code contained herein; if not, a copy can be obtained
+//  by writing to:
+//
+//  Free Software Foundation, Inc.
+//  51 Franklin Street, Fifth Floor
+//  Boston, MA  02110-1301 USA
+//
+//  Further, no use of this source code is permitted in any form or means
+//  without inclusion of this banner prominently in any derived works. 
+//
+//  Michael A. Morris
+//  Huntsville, AL
+//
+///////////////////////////////////////////////////////////////////////////////
+
 `timescale 1ns / 1ps
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +57,10 @@
 // Revision:
 //
 //  0.01    13B22   MAM     File Created
+//
+//  1.00    14B24   MAM     Initial release
+//
+//  1.10    13B26   MAM     Changed to support M65C02 with internal 2kB Boot ROM    
 //
 // Additional Comments:
 // 
@@ -71,7 +112,9 @@ reg     Sim_nSO, Sim_nNMI, Sim_nIRQ;
 
 // Instantiate the Unit Under Test (UUT)
 
-M65C02  uut (
+M65C02  #(
+            .pBootROM_File("M65C02_Tst3.txt")
+        ) uut (
             .nRst(nRst),
             .nRstO(nRstO),
             
@@ -96,7 +139,9 @@ M65C02  uut (
             .Rdy(Rdy), 
             .XA(XA), 
             .A(A), 
-            .DB(DB), 
+            .DB(DB),
+
+            .nWP_In(1'b0),
             
             .nWait(nWait), 
         
@@ -108,26 +153,26 @@ M65C02  uut (
 
 //  Instantiate RAM Module
 
-wire    [7:0] ROM_DO;
-reg     ROM_WE;
-
-M65C02_RAM  #(
-                .pAddrSize(pRAM_AddrWidth),
-                .pDataSize(8),
-                .pFileName("M65C02_Tst3.txt")
-            ) ROM (
-                .Clk(~Phi2O),
-//                .Ext(1'b1),     // 4 cycle memory
-//                .ZP(1'b0),
-//                .Ext(1'b0),     // 2 cycle memory
-//                .ZP(1'b0),
-                .Ext(1'b0),   // 1 cycle memory
-                .ZP(1'b1),
-                .WE(ROM_WE),
-                .AI(A[(pRAM_AddrWidth - 1):0]),
-                .DI(DB),
-                .DO(ROM_DO)
-            );
+//wire    [7:0] ROM_DO;
+//reg     ROM_WE;
+//
+//M65C02_RAM  #(
+//                .pAddrSize(pRAM_AddrWidth),
+//                .pDataSize(8),
+//                .pFileName("M65C02_Tst3.txt")
+//            ) ROM (
+//                .Clk(~Phi2O),
+////                .Ext(1'b1),     // 4 cycle memory
+////                .ZP(1'b0),
+////                .Ext(1'b0),     // 2 cycle memory
+////                .ZP(1'b0),
+//                .Ext(1'b0),   // 1 cycle memory
+//                .ZP(1'b1),
+//                .WE(ROM_WE),
+//                .AI(A[(pRAM_AddrWidth - 1):0]),
+//                .DI(DB),
+//                .DO(ROM_DO)
+//            );
 
 //  Instantiate RAM Module
 
@@ -203,10 +248,13 @@ always #27.127 ClkIn = ~ClkIn;
 
 //  Connect ROM/RAM to M65C02 memory bus
 
-always @(*) ROM_WE <= Phi2O &  A[15] & ~nWr;
+//always @(*) ROM_WE <= Phi2O &  A[15] & ~nWr;
+
 always @(*) RAM_WE <= Phi2O & ~A[15] & ~nWr;
 
-assign DB = ((~nOE) ? ((A[15]) ? ROM_DO : RAM_DO) : {8{1'bZ}});
+//assign DB = ((~nOE) ? ((A[15]) ? ROM_DO : RAM_DO) : {8{1'bZ}});
+
+assign DB = ((~nOE) ? RAM_DO : {8{1'bZ}});
 
 //  Generate Simulate nIRQ signal based on writes by test program to address
 //      0xFFF8 (assert nIRQ) or 0xFFF9 (deassert nIRQ)

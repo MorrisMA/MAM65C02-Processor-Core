@@ -236,7 +236,7 @@ The header of the M65C02.v module provides details of the differences between
 the 65C02 microprocessor implementation represented by the M65C02.v and a 
 65C02 processor implementation as represented by the WDC W65C02S microprocessor. 
 
-The M65C02 implementation is targetted at an XC3S50A-4VQG100I FPGA. The User
+The M65C02 implementation is targeted at an XC3S50A-4VQG100I FPGA. The User
 Constraints File (ucf) has been developed so that the resulting implementation
 can be used as a fully functional microprocessor when attached to I/O devices,
 SRAM (25ns or faster), and a NOR Flash device (4kB, 45ns or faster). 
@@ -271,3 +271,54 @@ Please read the header and other comments for more details on the M65C02
 processor implementation. In particular, read and understand the discussion
 regarding the use of an FPGA-specific clock multiplexer to manage the memory
 cycle length in lieu of supporting wait state generation/insertion.
+
+#####Release 2.6
+
+Modified the M65C02 processor to use the last available block RAM in the 
+XC3S50A-xVQGI device as a 2kB Boot/Monitor ROM. Added an external pin to 
+inhibit writes into this block RAM. The UCF file includes a PULLUP on the pin 
+which enables writes. Also modified the clock stretch logic to only apply when 
+system ROM, CE[2], or User ROM, CE[1], are addressed. The Boot/Monitor 
+ROM/RAM, IO (CE[3]), and User RAM, CE[0], do not use the clock stretching 
+logic and therefore require devices able to respond in a single memory cycle of
+the M65C02, ~25ns.
+
+Adding the additional (internal) device select and data multiplexer to the
+M65C02 caused a drop in performance. External memory operating frequency decreased
+from ~20 MHz (max) to ~16 MHz for a -5 speed grade part. There was also an
+increase in the size of the implementation, but that was expected and did used 
+reasonable number of additional resources.
+
+The following table summarizes PAR results for the new release of the M65C02
+processor:
+
+                                           Used Avail  %
+    Number of Slice Flip Flops              205 1408  14%   
+    Number of 4 input LUTs                  724 1408  51%   
+    Logic Distribution          
+
+    Number of occupied Slices               443  704  62%   
+        Number of Slices related logic      443  443 100%   
+        Number of Slices unrelated logic      0  426   0%   
+    Total Number of 4 input LUTs            732 1408  51%   
+        Number used as logic                723       
+        Number used as a route-thru           8       
+        Number used as Shift registers        1       
+    Number of bonded IOBs 
+        Number of bonded pads                54   68  79%   
+        IOB Flip Flops                       80       
+    Number of BUFGMUXs                        4   24  16%   
+    Number of DCMs                            1    2  50%   
+    Number of RAMB16BWEs                      3    3 100% 
+
+    Best Case Achievable:                15.147ns (0.003ns Setup, 0.817ns Hold)
+
+The modified files are:
+
+    M65C02.v                - M65C02 microprocessor demonstration
+    M65C02.ucf              - User Constraints File: period and pin LOCs
+    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
+
+Additional work is needed for verification, but this release successfully
+executes the same test program as the previous release of the M65C02 processor
+and the M65C02 core.
