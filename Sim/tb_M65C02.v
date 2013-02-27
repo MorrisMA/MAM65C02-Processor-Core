@@ -151,8 +151,8 @@ M65C02  #(
             .MISO(MISO)
         );
 
-//  Instantiate RAM Module
-
+////  Instantiate Boot/Monitor ROM Module
+//
 //wire    [7:0] ROM_DO;
 //reg     ROM_WE;
 //
@@ -253,7 +253,6 @@ always #27.127 ClkIn = ~ClkIn;
 always @(*) RAM_WE <= Phi2O & ~A[15] & ~nWr;
 
 //assign DB = ((~nOE) ? ((A[15]) ? ROM_DO : RAM_DO) : {8{1'bZ}});
-
 assign DB = ((~nOE) ? RAM_DO : {8{1'bZ}});
 
 //  Generate Simulate nIRQ signal based on writes by test program to address

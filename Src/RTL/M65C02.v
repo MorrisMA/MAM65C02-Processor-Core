@@ -164,6 +164,8 @@
 //                          namic clock stretching circuit. Added a nWP input to
 //                          inhibit writes to the Boot/Monitor Block RAM.
 //
+//  2.10    13B27   MAM     Removed all unused logic, or RTL commented out.
+//
 // Additional Comments:
 //
 //  With regard to the W65C02S, the M65C02 microprocessor implementation differs
@@ -305,7 +307,7 @@ module M65C02 #(
 
     parameter pNOP        = 8'hEA,          // M65C02 Core NOP instruction
 
-    parameter pROM_AddrWidth = 12,          // System ROM Addres Width
+    parameter pROM_AddrWidth = 11,          // Boot/Monitor ROM Addres Width
 
     parameter pM65C02_uPgm  = "M65C02_uPgm_V3a.coe",
     parameter pM65C02_IDec  = "M65C02_Decoder_ROM.coe",
@@ -412,8 +414,8 @@ reg     [7:0] DI_IFD;
 
 reg     nWP;                        // Boot/Monitor RAM write protect
 reg     WE_Boot;                    // Write Enable for the Boot/Monitor ROM
-reg     [(pROM_AddrWidth-2):0] iAO; // Internal address pipeline register
-reg     [7:0] Boot [((2**(pROM_AddrWidth-1))-1):0];  // Boot ROM/RAM (2k x 8)
+reg     [(pROM_AddrWidth-1):0] iAO; // Internal address pipeline register
+reg     [7:0] Boot [((2**pROM_AddrWidth)-1):0];  // Boot ROM/RAM (2k x 8)
 reg     [7:0] Boot_DO;              // Boot/Monitor ROM output data (absorbed)
 reg     [7:0] Boot_IFD;             // Boot/Monitor ROM output pipeline register
 
@@ -606,8 +608,6 @@ M65C02_Core #(
                 .MC(MC), 
                 .MemTyp(),
                 .uLen(2'b11),       // Len 4 Cycle 
-//                .uLen(2'b1),        // Len 2 Cycle 
-//                .uLen(2'b0),        // Len 1 Cycle
                 .Wait(1'b0),        // No wait states support at this time 
                 .Rdy(),
                 
@@ -811,7 +811,7 @@ begin
 end
 
 initial
-  $readmemh(pBootROM_File, Boot, 0, ((2**(pROM_AddrWidth-1))-1));
+  $readmemh(pBootROM_File, Boot, 0, ((2**pROM_AddrWidth)-1));
   
 always @(posedge Clk)
 begin
@@ -820,14 +820,6 @@ begin
         
     Boot_DO <= #1 Boot[iAO];
 end
-
-//always @(posedge Clk)
-//begin
-//    if(WE_Boot)
-//        Boot[AO] <= #1 DO;
-//        
-//    Boot_DO <= #1 Boot[AO];
-//end
 
 //  Add pipeline register to break circular path through Address Generator
 
@@ -842,6 +834,5 @@ end
 //  Multiplex the External and Internal Data sources
 
 assign DI = ((BootROM) ? Boot_IFD : DI_IFD);
-//assign DI = ((BootROM) ? Boot_DO : DI_IFD);
 
 endmodule
