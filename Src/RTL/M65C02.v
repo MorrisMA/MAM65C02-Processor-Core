@@ -166,6 +166,18 @@
 //
 //  2.10    13B27   MAM     Removed all unused logic, or RTL commented out.
 //
+//  2.20    12C02   MAM     Incorporated M65C02_Core with M65C02_MPCv4 which in-
+//                          cludes built-in microcycle length control and 6502-
+//                          compatible wait state generator: Phi1O and Phi2O are
+//                          are maintained as symmetrical signals. Removed clock
+//                          stretch logic, BUFGMUX, and added four more micro-
+//                          cycle state decode signals: C4-C8. This required in-
+//                          creasing the MC vector size from 2 to 3 bits.
+//
+//  2.21    12C03   MAM     Added C7 to the CE for the external memory data in-
+//                          put. Also qualified DI_IFD CEwith the Rdy input sig-
+//                          nal.
+//
 // Additional Comments:
 //
 //  With regard to the W65C02S, the M65C02 microprocessor implementation differs
@@ -354,9 +366,6 @@ module M65C02 #(
 //  Declarations
 //
 
-wire    ClkFX, Clk2X;           // DCM output multiplexed to drive system Clk
-reg     ClkSel;                 // FF used to select Clk drive source
-
 reg     [3:0] DCM_Rst;          // Stretched DCM Reset (see Table 3-6 UG331)
 reg     nRst_IFD;               // Input FF for external Reset signal
 reg     [3:0] xRst;             // Stretched external reset (Buf_ClkIn)
@@ -386,13 +395,14 @@ wire    ISR;                    // M65C02 core signal for signaling vector read
 wire    Done;                   // M65C02 core instruction complete/fetch
 wire    [2:0] Mode;             // M65C02 core instruction mode
 wire    RMW;                    // M65C02 core Read-Modify-Write indicator
-wire    [1:0] MC;               // M65C02 core microcycle 
+wire    [2:0] MC;               // M65C02 core microcycle 
 wire    [1:0] IO_Op;            // M65C02 core I/O cycle type
 wire    [15:0] AO;              // M65C02 core Address Output
 wire    [ 7:0] DI;              // M65C02 core Data Input
 wire    [ 7:0] DO;              // M65C02 core Data Output
 
 wire    C1, C2, C3, C4;         // Decoded microcycle states
+wire    C5, C6, C7, C8;         // Decoded microcycle states
 
 reg     [1:0] VP;               // Vector read/pull pulse stretcher
 
@@ -433,38 +443,14 @@ ClkGen  ClkGen (
             .CLKIN_IN(ClkIn),                   // ClkIn          = 18.432 MHz
             .CLKIN_IBUFG_OUT(Buf_ClkIn),        // Buffered ClkIn = 18.432 MHz
 
-            .CLKFX_OUT(ClkFX),                  // DCM ClkFX_Out  = 73.728 MHz 
+            .CLKFX_OUT(Clk),                    // DCM ClkFX_Out  = 73.728 MHz 
 
             .CLK0_OUT(),                        // Clk0_Out unused 
-            .CLK2X_OUT(Clk2X),                  // Clk2x_Out (FB) = 36.864 MHz 
+            .CLK2X_OUT(),                       // Clk2x_Out (FB) = 36.864 MHz 
             
             .LOCKED_OUT(DCM_Locked)             // When 1, DCM Locked 
         );
-
-//  Implement Clock Multiplexer which switches between ClkFX and Clk2X when the
-//  memory access cycle selects the I/O bank: 0xF800-0xFFFF.
-
-always @(posedge ClkFX or posedge Rst_M65C02)
-begin
-    if(Rst_M65C02)
-        ClkSel <= #1 0;
-    else if(C1 | C3)
-        ClkSel <= #1 ((C1) ? (SYS | ROM) : 0);
-end
-
-// BUFGMUX: Global Clock Buffer 2-to-1 MUX
-// Virtex-II/II-Pro/4/5, Spartan-3/3E/3A
-// Xilinx HDL Libraries Guide, version 10.1.2
-
-BUFGMUX ClkMux (
-            .O(Clk),            // Clock MUX output
-            .I0(ClkFX),         // Clock0 input
-            .I1(Clk2X),         // Clock1 input
-            .S(ClkSel)          // Clock select input
-        );
-        
-// End of BUFGMUX_inst instantiation
-        
+      
 //  Detect falling edge of DCM_Locked, and generate DCM reset pulse at least 4
 //  ClkIn periods wide if a falling edge is detected. (see Table 3-6 UG331)
         
@@ -607,8 +593,7 @@ M65C02_Core #(
                 
                 .MC(MC), 
                 .MemTyp(),
-                .uLen(2'b11),       // Len 4 Cycle 
-                .Wait(1'b0),        // No wait states support at this time 
+                .Wait(~Rdy),
                 .Rdy(),
                 
                 .IO_Op(IO_Op), 
@@ -630,10 +615,15 @@ M65C02_Core #(
             
 //  Define the Memory Cycle Strobes (1 cycle in width)
 
-assign C1 = (MC == 2);      // First cycle of microcycle
-assign C2 = (MC == 3);      // Second cycle of microcyle
-assign C3 = (MC == 1);      // Third cycle of microcycle
-assign C4 = (MC == 0);      // Fourth cycle of microcycle
+assign C1 = (MC == 6);      // 1st cycle of microcycle
+assign C2 = (MC == 7);      // 2nd cycle of microcycle
+assign C3 = (MC == 5);      // 3rd cycle of microcycle
+assign C4 = (MC == 4);      // 4th cycle of microcycle
+//
+assign C5 = (MC == 2);      // 5th cycle of microcycle (Wait State Sequence)
+assign C6 = (MC == 3);      // 6th cycle of microcycle (Wait State Sequence)
+assign C7 = (MC == 1);      // 7th cycle of microcycle (Wait State Sequence)
+assign C8 = (MC == 0);      // 8th cycle of microcycle (Wait State Sequence)
 
 //  Assign Phi1O and Phi2O
 
@@ -641,8 +631,10 @@ always @(posedge Clk or posedge Rst_M65C02)
 begin
     if(Rst_M65C02)
         {Phi1O, Phi2O} <= #1 2'b01;
-    else
-        {Phi1O, Phi2O} <= #1 {(C3 | C4), (C1 | C2)};
+    else begin
+        Phi1O <= #1 (C3 | C4 | C7 | C8);
+        Phi2O <= #1 (C1 | C2 | C5 | C6);
+    end
 end
 
 //  Generate Chip Enables
@@ -696,8 +688,6 @@ begin
     else if(C1)
         nWait <= #1 ~(Mode == pWAI);
 end
-
-assign Rdy = ((~nWait) ? 0 : 1'bZ);
 
 //  Generate M65C02 Memory Lock Signal
 
@@ -772,6 +762,8 @@ assign DB = ((BE & ~nWr) ? DO_OFD : 8'bZ);
 //      data. Internal signal paths in the FPGA will operate on the data within
 //      half a cycle of Clk. This requires tighter path controls by the map and
 //      route tools. DI is distributed to IR, OP1, OP2, uPgm_ROM, and IDec_ROM.
+
+assign CE_DI_IFD = (C3 | C7) & Rdy;
 
 always @(posedge Clk)
 begin

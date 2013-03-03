@@ -322,3 +322,97 @@ The modified files are:
 Additional work is needed for verification, but this release successfully
 executes the same test program as the previous release of the M65C02 processor
 and the M65C02 core.
+
+#####Release 2.7
+
+Modified the Release 2.6 M65C02 processor to use a newly released version of the
+microprogram controller. The new microprogram controller, M65C02_MPCv4.v,
+modifies the behavior of the built-in microcycle length controller. It fixes the
+microcycle length to 4, and adds four additional states by which external
+devices can request wait states. The new microprogram controller adds wait
+states in integer multiples of the memory cycle. In this way, the clock stretch
+logic built using a FF and a BUFGMUX clock multiplexer can be removed, and the
+external Phi1O and Phi2O signals will maintain their natural 50% DC signal
+characteristic.
+
+The change to the microprogram controller required a change to the core and to
+the interface between the core and the M65C02 processor. Within the core, the
+change in the microprogram controller removed the need for the cycle extension
+logic used to insert an extra state in the microcycle whenever a BCD instruction
+is executed. The extra cycle is only needed when the core is operating with
+single memory. Since the microcycle is fixed to 4 with the new microprogram
+controller, the BCD mode microcycle extension logic was removed.
+
+The interface change refers to the need to increase the width of the microstate
+signal, MC, from 2 to 3 bits. Within the M65C02 processor, the additional states
+supported by the larger MC port required that the clock enable for the external
+memory data input register be modified. The nominal external input data sampling
+point is cycle 3, falling edge of Phi2O. With wait states, the data sampling
+point becomed cycle 3 or cycle 7. For data sampling, the external Rdy input
+signal must also be asserted. A final change to the M65C02 processor is that the
+Phi1O and Phi2O signals are now set and reset using four microstate decode
+signals rather than two.
+
+The incorporation of the last block memory into the design resulted in a loss of
+performance. The M65C02 processor is unable to maintain an external memory cycle
+rate of 18.432 MHz when the block RAM is included. The additional decode and
+input data multiplexer impose a path delay that lower the memory interface
+operating speed to 16 MHz. Thus, the nearest baud rate frequency is 14.7456 MHz.
+
+Operating at 14.7456 MHz requires external devices to request a wait state if 
+they are unable to accept or supply data within 33.908ns. (At 16 MHz 
+operation, the access time requirement is 31.25ns.) A single wait state 
+extends the memory access time to 101.725ns. At 14.7456 MHz or 16 MHz, the 
+memory cycle characteristics of the M65C02 processor allow the use of low-cost 
+high-speed asynchronous SRAMs, and with one wait state, low-cost NOR Flash 
+EEPROMs in 45, 55, 70, or 90ns speed grades.
+
+The following table summarizes PAR results for Release 2.7 of the M65C02
+processor:
+
+                                           Used Avail  %
+    Number of Slice Flip Flops              205 1408  14%   
+    Number of 4 input LUTs                  720 1408  51%   
+
+    Number of occupied Slices               401  704  56%   
+        Number of Slices related logic      401  401 100%   
+        Number of Slices unrelated logic      0  401   0%   
+    Total Number of 4 input LUTs            728 1408  51%   
+        Number used as logic                719       
+        Number used as a route-thru           8       
+        Number used as Shift registers        1       
+    Number of bonded IOBs 
+        Number of bonded pads                54   68  79%   
+        IOB Flip Flops                       79       
+    Number of BUFGMUXs                        4   24  16%   
+    Number of DCMs                            1    2  50%   
+    Number of RAMB16BWEs                      3    3 100% 
+
+    Best Case Achievable:                15.625ns (0.000ns Setup, 0.961ns Hold)
+
+The files modified in this release are:
+
+    M65C02.v                - M65C02 microprocessor demonstration
+      M65C02_Core.v         - M65C02 core logic
+        M65C02_MPCv4.v      - M65C02 core microprogram controller
+      M65C02.ucf            - User Constraints File: period and pin LOCs
+    M65C02.tcl              - M65C02 ISE tool configurations/settings
+    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
+
+Testing with the current testbench demonstrates that the M65C02 processor 
+correctly executes the 65C02 test program, M65C02_Tst3.a65, used in previous 
+testing of the M65C02 core with tb_M65C02_Core.v. That provides confidence 
+that the integration of the core logic with the memory interface, interrupt 
+handler, reset controller, and internal block RAM did not introduce any errors 
+related to the core. However, the circuits in the wrapper around the core 
+logic have not been extensively tested. The testing that has been performed to 
+date indicate these circuits are operating correctly, but the tests performed 
+to date only test the nominal cases and not those cases on the margins.
+
+For example, the interrupt handler has demonstrated that it is able to handle 
+vector generation for RST, IRQ, and BRK; NMI vector processing has not yet 
+been tested. Another signal not yet tested is the reset logic's characteristic 
+that requires the external nRst signal to be asserted for four cycle of the 
+input clock before it is recognized. This behavior has not yet been tested, nor 
+has the related behavior that a loss of lock of the internal clock generator
+will assert reset to the M65C02 processor.

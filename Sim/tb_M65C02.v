@@ -238,8 +238,9 @@ end
 //  Clocks
 //
 
-always #27.127 ClkIn = ~ClkIn;
 //always #20 ClkIn = ~ClkIn;
+//always #27.127 ClkIn = ~ClkIn;
+always #33.908 ClkIn = ~ClkIn;
 
 ////////////////////////////////////////////////////////////////////////////////
 //

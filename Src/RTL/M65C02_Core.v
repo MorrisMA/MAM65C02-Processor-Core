@@ -290,6 +290,12 @@
 //  3.21    13B16   MAM     Added ISR signal to port list to easily allow the
 //                          external logic to generate the vector pull signal.
 //
+//  3.30    13C02   MAM     Changed MPC from M65C02_MPCv3 to M65C02_MPCv4. V4
+//                          includes a wait state generator to maintain a cons-
+//                          tant external Phi1O/Phi2O duty cycle. Because of new
+//                          wait state generator, the BUFGMUX instantiated and
+//                          used for clock stretching is removed.
+//
 // Additional Comments:
 //
 //  This module is derived from the first implementation which assummed it was
@@ -358,11 +364,10 @@ module M65C02_Core #(
     
     //  Processor Core Memory Controller Interface
     
-    output  [1:0] MC,       // Microcycle state:   2-C1; 0-C4; 1-C3; 3-C4;
+    output  [2:0] MC,       // Microcycle state:   2-C1; 3-C4; 1-C3; 0-C4;
     output  [1:0] MemTyp,   // Memory access Type: 0-Pgm Memory; 1-Page 0;
                             //                     2-Page 1;     3-Data Memory;
-    input   [1:0] uLen,     // Length for microcycle length controller
-    input   Wait,           // Wait Input (used in C3 & C4 to extend microcycle)
+    input   Wait,           // Wait Input (in C3, adds wait state sequence)
     output  reg Rdy,        // Internal Ready
     
     //  Processor Core Memory Cycle Interface    
@@ -460,8 +465,6 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 
 wire    WAI;                            // Instruction Mode Decode for WAI
 
-wire    BCD_Op;                         // BCD Operation - requires extra cycle
-wire    [1:0] MC_Len;                   // Microcycle Length Select
 wire    MPC_En;                         // Microcycle Complete
 
 wire    BRV1;                           // MPC BRV1 Instruction Decode
@@ -521,8 +524,6 @@ wire    [15:0] dPC;                 // Pipeline Compensation Register for PC
 
 wire    CE_IR, CE_OP1, CE_OP2;      // Clock Enables: IR, OP1, and OP2
 
-wire    D;                          // BCD mode bit in P
-
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Start Implementation
@@ -533,7 +534,7 @@ wire    D;                          // BCD mode bit in P
 
 assign Done   = (|Via);         // Instruction Complete (1)     - ~BRV0
 assign SC     = (&Via);         // Single Cycle Instruction (1) -  BRV3             
-assign MPC_En = (~|MC);         // Microcycle Complete Signal
+assign MPC_En = (MC == 4);      // Microcycle Complete Signal
 
 //  Generate Internal Ready Signal
 
@@ -591,25 +592,14 @@ end
 
 assign T = {3'b000, Valid};
 
-//  Determine if current instruction is an ADC/SBC in BCD mode
-
-assign BCD_Op = D & ((Op == pADC) | (Op == pSBC)) & BMW;    // BCD ADC/SBC op
-
-//  Determine Next Microcycle Length
-//      If current instruction is a BCD mode ADC/SBC, and current uLen input is
-//      equal to 0 (single cycle memory), then extend next microcycle by 1 cycle
-
-assign MC_Len = ((~|uLen) ? {1'b0, BCD_Op} : uLen);
-
 //  Instantiate Microprogram Controller/Sequencer - modified F9408A MPC
 
-M65C02_MPCv3    #(
+M65C02_MPCv4    #(
                     .pAddrWidth(pROM_AddrWidth)
-                ) MPCv3 (
+                ) MPCv4 (
                     .Rst(Rst), 
                     .Clk(Clk),
                     
-                    .uLen(MC_Len),          // Microcycle Length                
                     .Wait(Wait),            // Microcycle Wait state request
                     .MC(MC),                // Microcycle State
 
@@ -821,7 +811,6 @@ M65C02_ALU  #(
 //  Decode P
 
 assign IRQ_Msk = P[pIntMsk];        // Interrupt Mask Bit
-assign D       = P[pBCD];           // BCD Mode Bit   
 
 //  External Bus Data Output
 
