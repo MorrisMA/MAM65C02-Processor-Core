@@ -218,11 +218,12 @@ instructions.
 
 Release 2.5 makes some minor modifications to the M65C02 core module to allow 
 the output of some signals that allow the generation of interface signals such 
-as the active low Vector Pull output of the W65C02S microprocessor. In addition 
-to bringing out of these signals, Release 2.5 also provides an implementation of 
-a standalone microprocessor, or system-on-chip, which demonstrates how the 
-M65C02 can be used to provide 6502 processor. This implementation is composed of 
-the following files:
+as the active low Vector Pull output of the W65C02S microprocessor. In 
+addition to bringing out of these signals, Release 2.5 also provides an 
+implementation of a standalone microprocessor, or system-on-chip, which 
+demonstrates how the M65C02 can be used to provide a stand-alone 
+implementation of a 65C02 processor. This implementation is composed of the 
+following files:
 
     M65C02.v                - M65C02 microprocessor demonstration
         ClkGen.xaw          - Xilinx Architecture Wizard clock generator file
@@ -236,13 +237,14 @@ The header of the M65C02.v module provides details of the differences between
 the 65C02 microprocessor implementation represented by the M65C02.v and a 
 65C02 processor implementation as represented by the WDC W65C02S microprocessor. 
 
-The M65C02 implementation is targeted at an XC3S50A-4VQG100I FPGA. The User
-Constraints File (ucf) has been developed so that the resulting implementation
-can be used as a fully functional microprocessor when attached to I/O devices,
-SRAM (25ns or faster), and a NOR Flash device (4kB, 45ns or faster). 
-A development board is presently being developed to demonstrate the M65C02, and
-to provide a suitable platform for further development of the remaining FPGA 
-resources into a more complete system-on-chip based on the M65C02 core.
+The M65C02 implementation is targeted at an XC3S50A-4VQG100I FPGA. The User 
+Constraints File (ucf) has been developed so that the resulting implementation 
+can be used as a fully functional microprocessor when attached to external I/O 
+devices, external SRAM device(s) (25ns or faster), and external an NOR Flash 
+device (4kB, 45ns or faster). A development board is presently being developed 
+to demonstrate the M65C02, and to provide a suitable platform for further 
+development of the remaining FPGA resources into a more complete system-on-
+chip based on the M65C02 core.
 
 The Xilinx ISE 10.1i SP3 synthesis results for the M65C02 are as follows:
 
@@ -275,7 +277,7 @@ cycle length in lieu of supporting wait state generation/insertion.
 #####Release 2.6
 
 Modified the M65C02 processor to use the last available block RAM in the 
-XC3S50A-xVQGI device as a 2kB Boot/Monitor ROM. Added an external pin to 
+XC3S50A-xVQG100I device as a 2kB Boot/Monitor ROM. Added an external pin to 
 inhibit writes into this block RAM. The UCF file includes a PULLUP on the pin 
 which enables writes. Also modified the clock stretch logic to only apply when 
 system ROM, CE[2], or User ROM, CE[1], are addressed. The Boot/Monitor 
@@ -283,11 +285,11 @@ ROM/RAM, IO (CE[3]), and User RAM, CE[0], do not use the clock stretching
 logic and therefore require devices able to respond in a single memory cycle of
 the M65C02, ~25ns.
 
-Adding the additional (internal) device select and data multiplexer to the
-M65C02 caused a drop in performance. External memory operating frequency decreased
-from ~20 MHz (max) to ~16 MHz for a -5 speed grade part. There was also an
-increase in the size of the implementation, but that was expected and did used 
-reasonable number of additional resources.
+Adding the additional (internal) device select and data multiplexer to the 
+M65C02 caused a drop in performance. External memory operating frequency 
+decreased from ~20 MHz (max) to ~16 MHz for a -5 speed grade part. There was 
+also an increase in the size of the implementation, but that was expected and 
+did use a reasonable number of additional resources.
 
 The following table summarizes PAR results for the new release of the M65C02
 processor:
@@ -339,7 +341,7 @@ The change to the microprogram controller required a change to the core and to
 the interface between the core and the M65C02 processor. Within the core, the
 change in the microprogram controller removed the need for the cycle extension
 logic used to insert an extra state in the microcycle whenever a BCD instruction
-is executed. The extra cycle is only needed when the core is operating with
+is executed. That extra cycle is only needed when the core is operating with
 single memory. Since the microcycle is fixed to 4 with the new microprogram
 controller, the BCD mode microcycle extension logic was removed.
 
@@ -353,11 +355,12 @@ signal must also be asserted. A final change to the M65C02 processor is that the
 Phi1O and Phi2O signals are now set and reset using four microstate decode
 signals rather than two.
 
-The incorporation of the last block memory into the design resulted in a loss of
-performance. The M65C02 processor is unable to maintain an external memory cycle
-rate of 18.432 MHz when the block RAM is included. The additional decode and
-input data multiplexer impose a path delay that lower the memory interface
-operating speed to 16 MHz. Thus, the nearest baud rate frequency is 14.7456 MHz.
+The incorporation of the last block memory into the design resulted in a loss 
+of performance. The M65C02 processor is unable to maintain an external memory 
+cycle rate of 18.432 MHz when the internal block RAM is included. The 
+additional decode and input data multiplexer impose a path delay that lowers 
+the memory interface operating speed to 16 MHz. Thus, the nearest baud rate 
+frequency is 14.7456 MHz.
 
 Operating at 14.7456 MHz requires external devices to request a wait state if 
 they are unable to accept or supply data within 33.908ns. (At 16 MHz 
