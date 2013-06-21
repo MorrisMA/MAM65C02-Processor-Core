@@ -178,6 +178,32 @@
 //                          put. Also qualified DI_IFD CEwith the Rdy input sig-
 //                          nal.
 //
+//  2.30    13F08   MAM     Modified for Enso's Spartan 3A board with its 60 MHz
+//                          oscillator. Added an input for that clock, divided
+//                          the 60 MHz input by 4, and output the 15 MHz signal.
+//                          Expect Enso to connect the output of the divider to
+//                          the input clock pin of the M65C02 DCM. This mini-
+//                          mizes the amount of work needed to port the M65C02
+//                          to his project. An accompanying change is needed to
+//                          UCF file.
+//
+//  2.40    13F17   MAM     Reworked address decode to match the implementation
+//                          of the 1004-0001 M65C02 Demo Card: two 32kB RAMs,
+//                          one 512kB Flash, IO, and Boot ROM (internal Block
+//                          RAM). RAM[0] is fully mapped. Only the first 16kB of
+//                          RAM[1] is mapped. For the ROM, 12kB is mapped. The
+//                          external IO is mapped to 2kB. The last 2kB are
+//                          mapped to a Block RAM that serves to hold the Boot
+//                          Program.
+//
+//  2.71    13F20   MAM     Corrected error in the generation of the Rst_M65C02
+//                          internal reset signal. The reduction of the reset
+//                          signal shift register was previously done as an AND.
+//                          That reduction has been changed to an OR, which is
+//                          the correct vector reduction operator to generate
+//                          internal reset signal from the external nRst and the
+//                          DCM_Locked signal.
+//
 // Additional Comments:
 //
 //  With regard to the W65C02S, the M65C02 microprocessor implementation differs
@@ -328,7 +354,7 @@ module M65C02 #(
     input   nRst,               // System Reset Input
     output  nRstO,              // Internal System Reset Output (OC w/ PU)
     input   ClkIn,              // System Clk Input
-    
+
     output  reg Phi2O,          // Clock Phase 2 Output
     output  reg Phi1O,          // Clock Phase 1 Output - complement of Phi2O
     
@@ -411,7 +437,8 @@ reg     nML_OFD;
 reg     RnW_OFD;
 
 wire    BootROM;                // Internal Block RAM/ROM for Boot/Monitor
-wire    IO, SYS, ROM, RAM;      // Address decode signals: CE[3]...CE[0]
+wire    IO, ROM;                // Address decode signals: CE[3], CE[2]
+wire    [1:0] RAM;              // Address decode signals: CE[1], CE[0]
 
 reg     [ 3:0] nCE_OFD;         // Decoded Chip Enable output (IOB registers)
 reg     [ 3:0] XA_OFD;          // Extended Address output (IOB registers)
@@ -464,7 +491,7 @@ fedet   FE1 (
 always @(posedge Buf_ClkIn or posedge FE_DCM_Locked)
 begin
     if(FE_DCM_Locked)
-        DCM_Rst <= #1 4'b1111;
+        DCM_Rst <= #1 ~0;
     else
         DCM_Rst <= #1 {1'b0, DCM_Rst[3:1]};
 end
@@ -492,7 +519,7 @@ begin
         xRst <= #1 {~nRst_IFD, xRst[2:1]};
 end        
 
-assign Rst_M65C02 = ((&{~nRst_IFD, xRst}) | ~DCM_Locked);
+assign Rst_M65C02 = ((|{~nRst_IFD, xRst}) | ~DCM_Locked);
 
 always @(posedge Buf_ClkIn or posedge Rst_M65C02)
 begin
@@ -639,18 +666,18 @@ end
 
 //  Generate Chip Enables
 
-assign BootROM =  &AO[15:11];               // 0xF800 - 0xFFFF =  2kB (Internal)
-assign IO      = (&AO[15:12] & ~AO[11]);    // 0xF000 - 0xF7FF =  2kB (External)
-assign SYS     = (&AO[15:13] & ~AO[12]);    // 0xE000 - 0xEFFF =  4kB (External)
-assign ROM     = (&AO[15:14] & ~AO[13]);    // 0xC000 - 0xDFFF =  8kB (External)
-assign RAM     = ~&AO[15:14];               // 0x0000 - 0xBFFF = 48kB (External)
+assign BootROM = (&AO[15:12] &  AO[11]);        // 0xF800 - 0xFFFF =  2kB (Int)
+assign IO      = (&AO[15:12] & ~AO[11]);        // 0xF000 - 0xF7FF =  2kB (Ext)
+assign ROM     = (&AO[15:14] & ~&AO[13:12]);    // 0xC000 - 0xEFFF = 12kB (Ext)
+assign RAM[1]  = (AO[15] & ~AO[14]);            // 0x8000 - 0xBFFF = 16kB (Ext)
+assign RAM[0]  = ~AO[15];                       // 0x0000 - 0x7FFF = 32kB (Ext)
 
 always @(posedge Clk)
 begin
     if(Rst)
         nCE_OFD <= #1 ~0;
     else if(C1)
-        nCE_OFD <= #1 {~IO, ~SYS, ~ROM, ~RAM};
+        nCE_OFD <= #1 {~IO, ~ROM, ~RAM[1], ~RAM[0]};
 end
 
 assign nCE = ((BE) ? nCE_OFD : {4{1'bZ}});
@@ -661,8 +688,9 @@ always @(posedge Clk)
 begin
     if(Rst)
         {XA_OFD, AO_OFD} <= #1 {{4{1'b1}}, pRst_Vector};
-    else if(C1)
-        {XA_OFD, AO_OFD} <= #1 {{4{IO}}, AO};
+//    else if(C1)
+    else
+        {XA_OFD, AO_OFD} <= #1 {{4{AO[15]}}, AO};
 end
 
 assign {XA, A} = ((BE) ? {XA_OFD, AO_OFD} : {{4{1'bZ}}, {16{1'bZ}}});

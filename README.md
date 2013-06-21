@@ -419,3 +419,15 @@ that requires the external nRst signal to be asserted for four cycle of the
 input clock before it is recognized. This behavior has not yet been tested, nor 
 has the related behavior that a loss of lock of the internal clock generator
 will assert reset to the M65C02 processor.
+
+#####Release 2.71
+
+Corrected logic for generating an internal reset signal, Rst, based on an 
+external reset, nRst, and the state of the DCM_Locked signal. The vector 
+reduction operator applied, '&', is incorrect. The correct vector reduction 
+operator is '|', or logic OR. The correction has been made, and the FPGA 
+correctly drives the nRstO output with the complement of the internal reset 
+signal, Rst.
+
+The changes have been made to the M65C02.v module, and only that module has 
+been loaded into the MAM65C02 GitHUB repository.
