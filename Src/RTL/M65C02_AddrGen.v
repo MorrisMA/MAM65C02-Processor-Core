@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright 2012 by Michael A. Morris, dba M. A. Morris & Associates
+//  Copyright 2012-2013 by Michael A. Morris, dba M. A. Morris & Associates
 //
 //  All rights reserved. The source code contained herein is publicly released
 //  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -70,6 +70,12 @@
 //  1.10    12K12   MAM     Changed name of input signal Mod256 to ZP. When ZP
 //                          is asserted, AO is computed modulo 256.
 //
+//  2.00    13H04   MAM     Modified operand multiplexers into one-hot decoded
+//                          OR busses. Changed adder structures slightly so a
+//                          16-bit, two operand adder with carry input was syn-
+//                          thesized. Changed zero page % 256 logic to use an
+//                          AND gate with either 0x00FF or 0xFFFF as the mask.
+//
 // Additional Comments: 
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +106,7 @@ module M65C02_AddrGen(
     input   [7:0] X,                // X Index Register Input
     input   [7:0] Y,                // Y Index Register Input
 
-    output  [15:0] AO,              // Address Output
+    output  reg [15:0] AO,          // Address Output
 
     output  reg [15:0] AL,          // Address Generator Left Operand
     output  reg [15:0] AR,          // Address Generator Right Operand
@@ -136,12 +142,13 @@ localparam  pNA_LDAY = 4'hF;    // NA <= {OP2, OP1} + {0, Y}
 //  Module Declarations
 //
 
+reg     [ 6:0] Op_Sel;          // ROM Decoder for Next Address Operation
 wire    CE_MAR;                 // Memory Address Register Clock Enable
-wire    CE_PC;                  // Program Counter Clock Enable
 
+reg     [ 4:0] PC_Sel;          // ROM Decoder for Program Counter Updates
 wire    [15:0] Rel;             // Branch Address Sign-Extended Offset
 reg     [15:0] PCL, PCR;        // Program Counter Left and Right Operands
-reg     PC_Ci;                  // Program Counter Carry Input (Increment)
+wire    CE_PC;                  // Program Counter Clock Enable
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -150,59 +157,47 @@ reg     PC_Ci;                  // Program Counter Carry Input (Increment)
 
 //  Next Address Generator
 
-always @(*)
-begin
-    if(Rst)
-        AL <= Vector;
-    else
-        case(NA_Op)
-            4'b0000 : AL <= PC;                 // Reserved (default)
-            4'b0001 : AL <= PC;                 // NA <= PC + 1
-            4'b0010 : AL <= MAR;                // NA <= MAR + 0
-            4'b0011 : AL <= MAR;                // NA <= MAR + 1
-            4'b0100 : AL <= {8'b1, StkPtr};     // NA <= SP + 0
-            4'b0101 : AL <= {8'b0, OP1};        // NA <= {0, OP1} + 0
-            4'b0110 : AL <= {8'b0, OP1};        // NA <= {0, OP1} + {0, X}
-            4'b0111 : AL <= {8'b0, OP1};        // NA <= {0, OP1} + {0, Y}
-            4'b1000 : AL <= { OP2, OP1};        // Reserved
-            4'b1001 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + 0
-            4'b1010 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + 0
-            4'b1011 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + 0
-            4'b1100 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + 0
-            4'b1101 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + 0
-            4'b1110 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + {0, X}
-            4'b1111 : AL <= { OP2, OP1};        // NA <= {OP2, OP1} + {0, Y}
-        endcase
+always @(*)                 // PMSO XY C
+begin                       // CAtP    0
+    case(NA_Op)             //  Rk
+        4'b0000 : Op_Sel <= 7'b1000_00_0;   // NA <= PC                  + 0
+        4'b0001 : Op_Sel <= 7'b1000_00_1;   // NA <= PC                  + 1
+        4'b0010 : Op_Sel <= 7'b0100_00_0;   // NA <= MAR                 + 0
+        4'b0011 : Op_Sel <= 7'b0100_00_1;   // NA <= MAR                 + 1
+        4'b0100 : Op_Sel <= 7'b0010_00_0;   // NA <= {  1, SP }          + 0
+        4'b0101 : Op_Sel <= 7'b0001_00_0;   // NA <= {  0, OP1}          + 0
+        4'b0110 : Op_Sel <= 7'b0001_10_0;   // NA <= {  0, OP1} + {0, X} + 0
+        4'b0111 : Op_Sel <= 7'b0001_01_0;   // NA <= {  0, OP1} + {0, Y} + 0
+        4'b1000 : Op_Sel <= 7'b0001_00_0;   // NA <= {OP2, OP1}          + 0
+        4'b1001 : Op_Sel <= 7'b0001_00_0;   // NA <= {OP2, OP1}          + 0
+        4'b1010 : Op_Sel <= 7'b0001_00_0;   // NA <= {OP2, OP1}          + 0
+        4'b1011 : Op_Sel <= 7'b0001_00_0;   // NA <= {OP2, OP1}          + 0
+        4'b1100 : Op_Sel <= 7'b0001_00_0;   // NA <= {OP2, OP1}          + 0
+        4'b1101 : Op_Sel <= 7'b0001_00_0;   // NA <= {OP2, OP1}          + 0
+        4'b1110 : Op_Sel <= 7'b0001_10_0;   // NA <= {OP2, OP1} + {0, X} + 0
+        4'b1111 : Op_Sel <= 7'b0001_01_0;   // NA <= {OP2, OP1} + {0, Y} + 0
+    endcase
 end
 
-always @(*)
-begin
-    if(Rst)
-        AR <= 0;
-    else
-        case(NA_Op)
-            4'b0000 : AR <= 0;                  // Rserved (default)
-            4'b0001 : AR <= 1;                  // NA <= PC  + 1
-            4'b0010 : AR <= 0;                  // NA <= MAR + 0
-            4'b0011 : AR <= 1;                  // NA <= MAR + 1
-            4'b0100 : AR <= 0;                  // NA <= SP  + 0
-            4'b0101 : AR <= 0;                  // NA <= {  0, OP1} + 0
-            4'b0110 : AR <= {8'b0, X};          // NA <= {  0, OP1} + {0, X}
-            4'b0111 : AR <= {8'b0, Y};          // NA <= {  0, OP1} + {0, Y}
-            4'b1000 : AR <= 0;                  // NA <= {OP2, OP1} + 0
-            4'b1001 : AR <= 0;                  // NA <= {OP2, OP1} + 0
-            4'b1010 : AR <= 0;                  // NA <= {OP2, OP1} + 0
-            4'b1011 : AR <= 0;                  // NA <= {OP2, OP1} + 0
-            4'b1100 : AR <= 0;                  // NA <= {OP2, OP1} + 0
-            4'b1101 : AR <= 0;                  // NA <= {OP2, OP1} + 0
-            4'b1110 : AR <= {8'b0, X};          // NA <= {OP2, OP1} + {0, X}
-            4'b1111 : AR <= {8'b0, Y};          // NA <= {OP2, OP1} + {0, Y}
-        endcase
-end
+//  Generate Left Address Operand
 
-always @(*) NA = AL + AR;
+always @(*) AL <= (  ((Op_Sel[ 6]) ? PC              : 0)
+                   | ((Op_Sel[ 5]) ? MAR             : 0)
+                   | ((Op_Sel[ 4]) ? {8'h01, StkPtr} : 0)
+                   | ((Op_Sel[ 3]) ? {OP2  , OP1   } : 0));
+                   
+//  Generate Right Address Operand
 
-assign AO = ((ZP) ? {8'b0, NA[7:0]} : NA);
+always @(*) AR <= (  ((Op_Sel[ 2]) ? {8'h00, X}      : 0)
+                   | ((Op_Sel[ 1]) ? {8'h00, Y}      : 0));
+
+//  Compute Next Address
+
+always @(*) NA <= (AL + AR + Op_Sel[0]);
+
+//  Generate Address Output - Truncate Next Address when ZP asserted
+
+always @(*) AO <= NA & ((ZP) ? 16'h00FF : 16'hFFFF);
 
 //  Memory Address Register
 
@@ -224,66 +219,44 @@ assign CE_PC = ((BRV3) ? ((|PC_Op) & ~Int) : (|PC_Op)) & Rdy;
 
 assign Rel = ((CC) ? {{8{DI[7]}}, DI} : 0);
 
-always @(*)
-begin
-    case({PC_Op, Stk_Op})
-        //
-        4'b0000 : PCL <= PC;                    // NOP: PC
-        4'b0001 : PCL <= PC;                    // NOP: PC
-        4'b0010 : PCL <= PC;                    // NOP: PC
-        4'b0011 : PCL <= PC;                    // NOP: PC
-        //
-        4'b0100 : PCL <= PC;                    // Pls: PC + 1
-        4'b0101 : PCL <= PC;                    // Pls: PC + 1
-        4'b0110 : PCL <= PC;                    // Pls: PC + 1
-        4'b0111 : PCL <= PC;                    // Pls: PC + 1
-        //
-        4'b1000 : PCL <= { DI, OP1};            // Jmp: JMP
-        4'b1001 : PCL <= { DI, OP1};            // Jmp: JMP
-        4'b1010 : PCL <= {OP2, OP1};            // Jmp: JSR
-        4'b1011 : PCL <= { DI, OP1};            // Jmp: RTS/RTI
-        //
-        4'b1100 : PCL <= PC;                    // Rel:  Bcc
-        4'b1101 : PCL <= PC;                    // Rel:  Bcc
-        4'b1110 : PCL <= PC;                    // Rel:  Bcc
-        4'b1111 : PCL <= PC;                    // Rel:  Bcc
+//  Determine the operands for Program Counter updates
+
+always @(*)                 // PDO R C
+begin                       // PIP e 0
+    case({PC_Op, Stk_Op})   //   2 l
+        4'b0000 : PC_Sel <= 5'b100_0_0; // NOP: PC      PC <= PC         + 0
+        4'b0001 : PC_Sel <= 5'b100_0_0; // NOP: PC      PC <= PC         + 0
+        4'b0010 : PC_Sel <= 5'b100_0_0; // NOP: PC      PC <= PC         + 0
+        4'b0011 : PC_Sel <= 5'b100_0_0; // NOP: PC      PC <= PC         + 0
+        4'b0100 : PC_Sel <= 5'b100_0_1; // Pls: PC + 1  PC <= PC         + 1
+        4'b0101 : PC_Sel <= 5'b100_0_1; // Pls: PC + 1  PC <= PC         + 1
+        4'b0110 : PC_Sel <= 5'b100_0_1; // Pls: PC + 1  PC <= PC         + 1
+        4'b0111 : PC_Sel <= 5'b100_0_1; // Pls: PC + 1  PC <= PC         + 1
+        4'b1000 : PC_Sel <= 5'b010_0_0; // Jmp: JMP     PC <= { DI, OP1} + 0
+        4'b1001 : PC_Sel <= 5'b010_0_0; // Jmp: JMP     PC <= { DI, OP1} + 0
+        4'b1010 : PC_Sel <= 5'b001_0_0; // Jmp: JSR     PC <= {OP2, OP1} + 0
+        4'b1011 : PC_Sel <= 5'b010_0_1; // Jmp: RTS/RTI PC <= { DI, OP1} + 1
+        4'b1100 : PC_Sel <= 5'b100_1_1; // Rel: Bcc     PC <= PC + Rel   + 1
+        4'b1101 : PC_Sel <= 5'b100_1_1; // Rel: Bcc     PC <= PC + Rel   + 1
+        4'b1110 : PC_Sel <= 5'b100_1_1; // Rel: Bcc     PC <= PC + Rel   + 1
+        4'b1111 : PC_Sel <= 5'b100_1_1; // Rel: Bcc     PC <= PC + Rel   + 1
     endcase
 end
 
-always @(*) PCR <= ((&PC_Op) ? Rel : 0);        // Rel
+always @(*) PCL <= (  ((PC_Sel[4]) ? PC         : 0)
+                    | ((PC_Sel[3]) ? { DI, OP1} : 0)
+                    | ((PC_Sel[2]) ? {OP2, OP1} : 0));
 
-always @(*)
-begin
-    case({PC_Op, Stk_Op})
-        //
-        4'b0000 : PC_Ci <= 0;                   // NOP: PC
-        4'b0001 : PC_Ci <= 0;                   // NOP: PC
-        4'b0010 : PC_Ci <= 0;                   // NOP: PC
-        4'b0011 : PC_Ci <= 0;                   // NOP: PC
-        //
-        4'b0100 : PC_Ci <= 1;                   // Pls: PC + 1
-        4'b0101 : PC_Ci <= 1;                   // Pls: PC + 1
-        4'b0110 : PC_Ci <= 1;                   // Pls: PC + 1
-        4'b0111 : PC_Ci <= 1;                   // Pls: PC + 1
-        //
-        4'b1000 : PC_Ci <= 0;                   // Jmp: JMP
-        4'b1001 : PC_Ci <= 0;                   // Jmp: JMP
-        4'b1010 : PC_Ci <= 0;                   // Jmp: JSR
-        4'b1011 : PC_Ci <= 1;                   // Jmp: RTS/RTI
-        //
-        4'b1100 : PC_Ci <= 1;                   // Rel:  Bcc
-        4'b1101 : PC_Ci <= 1;                   // Rel:  Bcc
-        4'b1110 : PC_Ci <= 1;                   // Rel:  Bcc
-        4'b1111 : PC_Ci <= 1;                   // Rel:  Bcc
-    endcase
-end
+always @(*) PCR <=    ((PC_Sel[1]) ? Rel        : 0);
+
+//  Implement Program Counter
 
 always @(posedge Clk)
 begin
     if(Rst)
         PC <= #1 Vector;
     else if(CE_PC)
-        PC <= #1 (PCL + PCR + PC_Ci);
+        PC <= #1 (PCL + PCR + PC_Sel[0]);
 end
 
 //  Track past values of the PC for interrupt handling

@@ -259,9 +259,9 @@
 //                          page 0. Therefore, the increment operation to get
 //                          the second byte must be wrapped to page 0.
 //
-//  3.00    12K20   MAM     Renamed signal Last to MPC_En. MPC_En is asserted
+//  3.00    12K20   MAM     Renamed signal Last to Rdy. Rdy is asserted
 //                          on the last cycle of a multi-cycle microcycle. Added
-//                          (MPC_En | Rst) as a ROM enable for the microprogram
+//                          (Rdy | Rst) as a ROM enable for the microprogram
 //                          ROM to ensure that the microprogram word is constant
 //                          during a multi-cycle microcycle. Rst is included to
 //                          allow the first microword to be fetched during Rst
@@ -295,6 +295,13 @@
 //                          tant external Phi1O/Phi2O duty cycle. Because of new
 //                          wait state generator, the BUFGMUX instantiated and
 //                          used for clock stretching is removed.
+//
+//  3.40    13H04   MAM     Removed unused code. Changed DO bus to simple OR
+//                          gate instead of multiplxer. Added decode ROM to sup-
+//                          port one-hot select of various DO bus sources. Used
+//                          microcycle control signal in place of internal Rdy
+//                          signal. Changed MPC_En to Rdy, and deleted internal
+//                          ready 16:1 decoder.
 //
 // Additional Comments:
 //
@@ -368,7 +375,7 @@ module M65C02_Core #(
     output  [1:0] MemTyp,   // Memory access Type: 0-Pgm Memory; 1-Page 0;
                             //                     2-Page 1;     3-Data Memory;
     input   Wait,           // Wait Input (in C3, adds wait state sequence)
-    output  reg Rdy,        // Internal Ready
+    output  Rdy,            // Internal Ready
     
     //  Processor Core Memory Cycle Interface    
     
@@ -465,8 +472,6 @@ localparam  pSBC     = 5;       // ALU Operation Subtract w/ Carry
 
 wire    WAI;                            // Instruction Mode Decode for WAI
 
-wire    MPC_En;                         // Microcycle Complete
-
 wire    BRV1;                           // MPC BRV1 Instruction Decode
 wire    BRV2;                           // MPC BRV2 Instruction Decode
 wire    BRV3;                           // MPC BRV3 Instruction Decode
@@ -491,7 +496,6 @@ wire    [1:0] DI_Op;                    // Memory Data Input Control Field
 wire    [1:0] DO_Op;                    // Memory Data Output Control Field
 wire    [1:0] Stk_Op;                   // Stack Pointer Control Field
 wire    [2:0] Reg_WE;                   // Register Write Enable Control Field
-//wire    ISR;                            // Asserted during interrupt entry
 
 reg     En;                             // ALU Enable Control Field
 
@@ -524,6 +528,8 @@ wire    [15:0] dPC;                 // Pipeline Compensation Register for PC
 
 wire    CE_IR, CE_OP1, CE_OP2;      // Clock Enables: IR, OP1, and OP2
 
+reg     [5:0] DO_Sel;               // Data Output Multiplexer Decode ROM
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Start Implementation
@@ -532,33 +538,9 @@ wire    CE_IR, CE_OP1, CE_OP2;      // Clock Enables: IR, OP1, and OP2
 
 //  Define Microcycle and Instruction Cycle Status Signals
 
-assign Done   = (|Via);         // Instruction Complete (1)     - ~BRV0
-assign SC     = (&Via);         // Single Cycle Instruction (1) -  BRV3             
-assign MPC_En = (MC == 4);      // Microcycle Complete Signal
-
-//  Generate Internal Ready Signal
-
-always @(*)
-begin
-    case({Done, (|Op & |Reg_WE), Valid, MPC_En})
-        4'b0000 : Rdy <= 0;
-        4'b0001 : Rdy <= 1;     // Non-ALU external cycle ready
-        4'b0010 : Rdy <= 0;
-        4'b0011 : Rdy <= 1;     // Non-ALU external cycle ready
-        4'b0100 : Rdy <= 0;
-        4'b0101 : Rdy <= 1;     // Operands not ready, external cycle ready
-        4'b0110 : Rdy <= 0;
-        4'b0111 : Rdy <= 1;     // Operands not ready, external cycle ready
-        4'b1000 : Rdy <= 0;
-        4'b1001 : Rdy <= 1;     // Non-ALU op and external fetch ready
-        4'b1010 : Rdy <= 0;
-        4'b1011 : Rdy <= 1;     // Non-ALU op and external fetch ready
-        4'b1100 : Rdy <= 0;     // ALU op and external fetch not ready
-        4'b1101 : Rdy <= 0;     // ALU op not ready and external fetch ready
-        4'b1110 : Rdy <= 0;     // ALU op ready and external fetch not ready
-        4'b1111 : Rdy <= 1;     // ALU op and external fetch cycle ready
-    endcase
-end
+assign Done = (|Via);         // Instruction Complete (1)     - ~BRV0
+assign SC   = (&Via);         // Single Cycle Instruction (1) -  BRV3             
+assign Rdy  = (MC == 4);      // Microcycle Complete Signal
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -619,7 +601,7 @@ initial
     
 always @(posedge Clk)
 begin
-    if(MPC_En | Rst)
+    if(Rdy | Rst)
         uPL <= #1 uP_ROM[MA];
 end
 
@@ -814,18 +796,26 @@ assign IRQ_Msk = P[pIntMsk];        // Interrupt Mask Bit
 
 //  External Bus Data Output
 
-always @(*)
-begin
-    if(Rst)
-        DO <= #1 0;
-    else
-        case(DO_Op)
-            pDO_PSW : DO <= P;                                  // M65C02 PSW
-            pDO_PCL : DO <= ((IntSvc) ? dPC[ 7:0] : PC[ 7:0]);  // M65C02 PCL
-            pDO_PCH : DO <= ((IntSvc) ? dPC[15:8] : PC[15:8]);  // M65C02 PCH
-            default : DO <= Out;                                // M65C02 ALU
-        endcase
+always @(*)                // P ddPP O
+begin                      // S PPCC u
+    case({IntSvc, DO_Op})  // W HLHL t
+        3'b000 : DO_Sel <= 6'b0_0000_1;
+        3'b001 : DO_Sel <= 6'b0_0010_0;
+        3'b010 : DO_Sel <= 6'b0_0001_0;
+        3'b011 : DO_Sel <= 6'b1_0000_0;
+        3'b100 : DO_Sel <= 6'b0_0000_1;
+        3'b101 : DO_Sel <= 6'b0_1000_0;
+        3'b110 : DO_Sel <= 6'b0_0100_0;
+        3'b111 : DO_Sel <= 6'b1_0000_0;
+    endcase
 end
+
+always @(*) DO <= (  ((DO_Sel[5]) ? P         : 0)
+                   | ((DO_Sel[4]) ? dPC[15:8] : 0)
+                   | ((DO_Sel[3]) ? dPC[ 7:0] : 0)
+                   | ((DO_Sel[2]) ?  PC[15:8] : 0)
+                   | ((DO_Sel[1]) ?  PC[ 7:0] : 0)
+                   | ((DO_Sel[0]) ? Out       : 0));
 
 ///////////////////////////////////////////////////////////////////////////////
 //

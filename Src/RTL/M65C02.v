@@ -204,6 +204,15 @@
 //                          internal reset signal from the external nRst and the
 //                          DCM_Locked signal.
 //
+//  2.72    12H04   MAM     Removed unused code. Changed the DI multiplexer into
+//                          simple OR gate. The FFs feeding into the OR gate are
+//                          forced to 0 if not selected. Changed to reset signal
+//                          for several output strobes and input registers. On
+//                          outputs, the RnW signal terminates synchronously
+//                          with the rising edge of the Wr strobe. DI_IFD is rst
+//                          if an internal data source is selected. BootIFD is
+//                          reset if an external data source is selected.
+//
 // Additional Comments:
 //
 //  With regard to the W65C02S, the M65C02 microprocessor implementation differs
@@ -688,7 +697,6 @@ always @(posedge Clk)
 begin
     if(Rst)
         {XA_OFD, AO_OFD} <= #1 {{4{1'b1}}, pRst_Vector};
-//    else if(C1)
     else
         {XA_OFD, AO_OFD} <= #1 {{4{AO[15]}}, AO};
 end
@@ -745,7 +753,7 @@ assign Sync = ((BE) ? Sync_OFD : 1'bZ);
 
 always @(posedge Clk)
 begin
-    if(Rst)
+    if(Rst | ((C3 | C7) & Rdy))
         RnW_OFD <= #1 1;
     else if(C1)
         RnW_OFD <= #1 ~(IO_Op == 1);
@@ -755,21 +763,29 @@ assign RnW = ((BE) ? RnW_OFD : 1'bZ);
 
 //  Generate Asynchronous SRAM Read Strobe
 
-always @(posedge Clk) nOE_OFD <= #1 ((Rst | C3) ? 1 
-                                                : ((C1) ? (~IO_Op[1] | BootROM)
-                                                        : nOE_OFD));
+always @(posedge Clk)
+begin
+    if(Rst | ((C3 | C7) & Rdy))
+        nOE_OFD <= #1 1;
+    else if(C1)
+        nOE_OFD <= #1 (~IO_Op[1] | BootROM);
+end
 
 assign nOE = ((BE) ? nOE_OFD : 1'bZ);
 
 //  Generate Asynchronous SRAM Write Strobe 
 
-always @(posedge Clk) nWr_OFD <= #1 ((Rst | C3) ? 1 
-                                                : ((C1) ? ~(IO_Op == 1)
-                                                        : nWr_OFD));
+always @(posedge Clk)
+begin
+    if(Rst | ((C3 | C7) & Rdy))
+        nWr_OFD <= #1 1;
+    else if(C1)
+        nWr_OFD <= #1 ~(IO_Op == 1);
+end
 
 assign nWr = ((BE) ? nWr_OFD : 1'bZ);
 
-//  Drive DO out M65C02 module
+//  Drive DO out of M65C02 module
 //      Feed nWR strobe back in as second output enable. Coupled with half cycle
 //      shift in the nOE signal, these delays should make it easy to satisfy 
 //      bus disable times when write operations follow reads and vice-versa.
@@ -791,13 +807,14 @@ assign DB = ((BE & ~nWr) ? DO_OFD : 8'bZ);
 //      half a cycle of Clk. This requires tighter path controls by the map and
 //      route tools. DI is distributed to IR, OP1, OP2, uPgm_ROM, and IDec_ROM.
 
-assign CE_DI_IFD = (C3 | C7) & Rdy;
+assign CE_DI_FFs  = ((C3 | C7) & Rdy);
+assign Rst_DI_IFD = (Rst | BootROM);
 
 always @(posedge Clk)
 begin
-    if(Rst)
-        DI_IFD <= #1 pNOP;
-    else if(C3)
+    if(Rst_DI_IFD)
+        DI_IFD <= #1 0;
+    else if(CE_DI_FFs)
         DI_IFD <= #1 DB;
 end
 
@@ -820,7 +837,8 @@ begin
         WE_Boot <= #1 (BootROM & (IO_Op == 1) & nWP & C1);
 end
 
-//  Capture the output address to break long delay path like done for output address
+//  Capture the output address to break long delay path like done for output
+//      address
 
 always @(posedge Clk)
 begin
@@ -846,13 +864,13 @@ end
 always @(posedge Clk or posedge Rst)
 begin
     if(Rst)
-        Boot_IFD <= #1 pNOP;
-    else if(C3)
-        Boot_IFD <= #1 Boot_DO;
+        Boot_IFD <= #1 0;
+    else if(CE_DI_FFs)
+        Boot_IFD <= #1 ((BootROM) ? Boot_DO : 0);
 end
 
 //  Multiplex the External and Internal Data sources
 
-assign DI = ((BootROM) ? Boot_IFD : DI_IFD);
+assign DI = Boot_IFD | DI_IFD;
 
 endmodule

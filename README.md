@@ -431,3 +431,73 @@ signal, Rst.
 
 The changes have been made to the M65C02.v module, and only that module has 
 been loaded into the MAM65C02 GitHUB repository.
+
+#####Release 2.72
+
+Improved the timing of the soft-core microprocessor, M65C02, by using a more 
+efficient scheme for the internal bus multiplexers. Previous releases of the 
+core, M65C02_Core, and the soft-core microprocessor used multiplexers 
+generated using _switch/case select_ constructs.
+
+Although these constructs are an effective and fast means for generating bus 
+multiplexers, there are some penalties. This latest release has resorted to 
+using one-hot decode ROMs tied to the various bus selects in the 
+implementation, and then forcing the various data sources to connect to the 
+busses as gated signals. When not gated, a logic 0 is driven onto the bus. At 
+the terminal end, a simple OR gate is used to collect all of the desired gated 
+signals.
+
+The result of this effort has been a significant improvement in the 
+combinatorial path delays. Prior to this optimization, the synthesizer 
+reported a clock period performance of ~55 MHz. After the OR bus optimization 
+was fully incorporated, the synthesizer reports a minimum period of ~74 MHz. 
+This is nearly a 35% improvement in the combinatorial path delays.
+
+The resulting improvement is sufficient to allow the soft-core processor to 
+support an operating speed of **73.728 MHz** which corresponds to a single 
+instruction cycle time of **18.432 MHz** given this core's 4 cycle microcycle. 
+In addition to the improved combinatorial path delays, the improvement in path 
+delays has allowed the core to be synthesized, Mapped, and PARed for minimum 
+area. The result is a significant reduction in the resource utilization in the 
+target XC3S50A-4VQG100I FPGA.
+
+The following table summarizes PAR results for Release 2.7 of the M65C02
+processor: **XC3S50A-4VQG100I**
+
+                                           Used Avail  %
+    Number of Slice Flip Flops              248 1408  17%   
+    Number of 4 input LUTs                  647 1408  45%   
+
+    Number of occupied Slices               400  704  56%   
+        Number of Slices related logic      400  400 100%   
+        Number of Slices unrelated logic      0  400   0%   
+    Total Number of 4 input LUTs            661 1408  46%   
+        Number used as logic                646       
+        Number used as a route-thru          14       
+        Number used as Shift registers        1       
+    Number of bonded IOBs 
+        Number of bonded pads                54   68  79%   
+        IOB Flip Flops                       79       
+    Number of BUFGMUXs                        3   24  16%   
+    Number of DCMs                            1    2  50%   
+    Number of RAMB16BWEs                      3    3 100% 
+
+    Best Case Achievable:                13.516ns (0.047ns Setup, 1.021ns Hold)
+
+The files modified in this release are:
+
+    M65C02.v                - M65C02 microprocessor demonstration
+      M65C02_Core.v         - M65C02 core logic
+        M65C02_AddrGen.v    - M65C02 core microprogram controller
+        M65C02_ALU.v        - M65C02 core ALU
+          M65C02_BIN.v      - M65C02 ALU Binary mode adder
+          M65C02_BCD.v      - M65C02 ALU Decimal mode adder
+      M65C02.ucf            - User Constraints File: period and pin LOCs
+    M65C02.tcl              - M65C02 ISE tool configurations/settings
+
+Additional optimizations in the ALU can be applied, but with the improvements 
+made with this release, a -5 speed grade part can be made to operate at 90+ 
+MHz. If higher speeds are needed, then further optimization, including adding 
+pipeline registers to the ALU, can be made. Some pipelining can be easily 
+added because of the 4 clock microcycle around which the soft-core processor 
+is built.

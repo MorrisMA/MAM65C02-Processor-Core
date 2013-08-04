@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright 2009-2012 by Michael A. Morris, dba M. A. Morris & Associates
+//  Copyright 2009-2013 by Michael A. Morris, dba M. A. Morris & Associates
 //
 //  All rights reserved. The source code contained herein is publicly released
 //  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -389,6 +389,11 @@
 //                          microprogram. RMBx/SMBx can use the RMW_DP micro-
 //                          routine, but BBRx/BBSx require a new microroutine.
 //
+//  3.00    13H04           Made the internal bus multiplexers into a one-hot
+//                          decoded OR bus. Had to make some minor adjustments
+//                          to the LST_En and En_RU signals to accomodate the
+//                          changes in the bus multiplexer implementation.
+//
 // Additional Comments:
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -540,6 +545,7 @@ reg     [8:0] RU;               // Rockwell Unit Output
 reg     RU_Valid;               // RU Output Valid
 
 wire    LST_En;                 // Load/Store/Transfer Enable
+reg     [5:0] LST_Sel;          // Load/Store/Transfer Select ROM
 reg     [8:0] LST;              // Load/Store/Transfer Output Multiplexer
 
 reg     SelA, SelX, SelY, SelS, SelP;   // Decoded Register Write Selects
@@ -574,11 +580,14 @@ assign En_LU = (En & (Op[3:2] == 2'b00) & |Op[1:0]);
 
 always @(*)
 begin
-    case(Op[1:0])
-        2'b01   : LU <= {1'b0, A & M};           // AND
-        2'b10   : LU <= {1'b0, A | M};           // ORA
-        default : LU <= {1'b0, A ^ M};           // EOR
-    endcase
+    if(En_LU)
+        case(Op[1:0])
+            2'b01   : LU <= {1'b0, A & M};           // AND
+            2'b10   : LU <= {1'b0, A | M};           // ORA
+            default : LU <= {1'b0, A ^ M};           // EOR
+        endcase
+    else
+        LU <= 0;
 end
 
 always @(*)
@@ -630,12 +639,15 @@ assign En_SU = (En & (Op[3:2] == 2'b10));
 
 always @(*)
 begin
-    case(Op[1:0])
-        2'b00 : SU <= {W[7], {W[6:0], 1'b0}};   // ASL
-        2'b01 : SU <= {W[0], {1'b0, W[7:1]}};   // LSR
-        2'b10 : SU <= {W[7], {W[6:0], C}};      // ROL
-        2'b11 : SU <= {W[0], {C, W[7:1]}};      // ROR
-    endcase
+    if(En_SU)
+        case(Op[1:0])
+            2'b00 : SU <= {W[7], {W[6:0], 1'b0}};   // ASL
+            2'b01 : SU <= {W[0], {1'b0, W[7:1]}};   // LSR
+            2'b10 : SU <= {W[7], {W[6:0], C}};      // ROL
+            2'b11 : SU <= {W[0], {C, W[7:1]}};      // ROR
+        endcase
+    else
+        SU <= 0;
 end
 
 always @(*)
@@ -649,11 +661,14 @@ assign En_BU = (En & ((Op[3:2] == 2'b11) & ~(Op == pALU_CMP)));
 
 always @(*)
 begin
-    case(Op[1:0])
-        2'b01   : BU <= {1'b0,  ~A & M};    // TRB
-        2'b10   : BU <= {1'b0,   A | M};    // TSB
-        default : BU <= {1'b0,   A & M};    // BIT
-    endcase
+    if(En_BU)
+        case(Op[1:0])
+            2'b01   : BU <= {1'b0,  ~A & M};    // TRB
+            2'b10   : BU <= {1'b0,   A | M};    // TSB
+            default : BU <= {1'b0,   A & M};    // BIT
+        endcase
+    else
+        BU <= 0;
 end
 
 always @(*)
@@ -672,56 +687,69 @@ end
 //  Instead, the mask is provided by least significant 8 bits of the fixed
 //  microword, which was added as an additional input to the module.
 
-assign En_RU = (En & (CCSel[4:2] == 4'b001));
+assign En_RU = (CCSel[4:2] == 4'b001);
 
 always @(*)
 begin
-    case(CCSel[1:0])
-        2'b00 : RU <= {1'b0, Msk |  M};    // SMBx
-        2'b01 : RU <= {1'b0, Msk &  M};    // RMBx
-        2'b10 : RU <= {1'b0, Msk &  M};    // BBSx
-        2'b11 : RU <= {1'b0, Msk & ~M};    // BBRx
-    endcase
+    if(En_RU)
+        case(CCSel[1:0])
+            2'b00 : RU <= {1'b0, Msk |  M};    // SMBx
+            2'b01 : RU <= {1'b0, Msk &  M};    // RMBx
+            2'b10 : RU <= {1'b0, Msk &  M};    // BBSx
+            2'b11 : RU <= {1'b0, Msk & ~M};    // BBRx
+        endcase
+    else
+        RU <= 0;
 end
 
 always @(*) RU_Valid <= En_RU;
 
 //  Load/Store/Transfer Enable
 
-assign LST_En = (En & (Op == pALU_NOP));
+assign LST_En = ((Op == pALU_NOP) & ~(CCSel[4:2] == 4'b001));
 
 //  Load/Store/Transfer Multiplexer
 
 always @(*)
 begin
-    if(Rst)
-        LST <= {1'b0, A};
-    else
-        case(OSel)
-            pSel_A  : LST <= {1'b0, A};     // STA/TAX/TAY/PHA
-            pSel_X  : LST <= {1'b0, X};     // STX/TXA/TXS/PHX
-            pSel_Y  : LST <= {1'b0, Y};     // STY/TYA/PHY
-            pSel_Z  : LST <= {1'b1, 8'b0};  // STZ
-            pSel_S  : LST <= {1'b0, S};     // TSX
-            pSel_P  : LST <= {1'b0, P};     // PHP
-            default : LST <= {1'b0, M};     // LDA/PLA/LDX/PLX/LDY/PLY/PLP
-        endcase    
+    case(OSel)
+        3'b000 : LST_Sel <= 6'b000_00_1;          // LDA/PLA/LDX/PLX/LDY/PLY/PLP
+        3'b001 : LST_Sel <= 6'b100_00_0;          // STA/TAX/TAY/PHA
+        3'b010 : LST_Sel <= 6'b010_00_0;          // STX/TXA/TXS/PHX
+        3'b011 : LST_Sel <= 6'b001_00_0;          // STY/TYA/PHY
+        3'b100 : LST_Sel <= 6'b000_00_0;          // STZ
+        3'b101 : LST_Sel <= 6'b000_10_0;          // TSX
+        3'b110 : LST_Sel <= 6'b000_01_0;          // PHP
+        3'b111 : LST_Sel <= 6'b000_00_1;          // LDA/PLA/LDX/PLX/LDY/PLY/PLP
+    endcase
 end
-
-//  ALU Output Multiplexer
 
 always @(*)
 begin
-    case({LU_Valid, AU_Valid, DU_Valid, SU_Valid, BU_Valid, RU_Valid})
-        6'b100000 : {COut, Out} <= LU;   // ORA/AND/EOR
-        6'b010000 : {COut, Out} <= AU;   // INC/DEC/INX/DEX/INY/DEY/CMP/ADC/SBC
-        6'b001000 : {COut, Out} <= DU;   // ADC/SBC (BCD-Only)
-        6'b000100 : {COut, Out} <= SU;   // ASL/LSR/ROL/ROR
-        6'b000010 : {COut, Out} <= BU;   // BIT/TRB/TSB
-        6'b000001 : {COut, Out} <= RU;   // RMBx, SMBx
-        default   : {COut, Out} <= LST;  // Load/Store/Transfer Operations
-    endcase
+    if(LST_En)
+        LST <= (  ((LST_Sel[5]) ? {1'b0, A} : 0)  // STA/TAX/TAY/PHA 
+                | ((LST_Sel[4]) ? {1'b0, X} : 0)  // STX/TXA/TXS/PHX 
+                | ((LST_Sel[3]) ? {1'b0, Y} : 0)  // STY/TYA/PHY
+                | ((LST_Sel[2]) ? {1'b0, S} : 0)  // TSX 
+                | ((LST_Sel[1]) ? {1'b0, P} : 0)  // PHP
+                | ((LST_Sel[0]) ? {1'b0, M} : 0));// LDA/PLA/LDX/PLX/LDY/PLY/PLP
+    else
+        LST <= 0;                                 // STZ
 end
+
+//  ALU Output Multiplexer
+//
+//case({LU_Valid, AU_Valid, DU_Valid, SU_Valid, BU_Valid, RU_Valid})
+//    6'b100000 : {COut, Out} <= LU;   // ORA/AND/EOR
+//    6'b010000 : {COut, Out} <= AU;   // INC/DEC/INX/DEX/INY/DEY/CMP/ADC/SBC
+//    6'b001000 : {COut, Out} <= DU;   // ADC/SBC (BCD-Only)
+//    6'b000100 : {COut, Out} <= SU;   // ASL/LSR/ROL/ROR
+//    6'b000010 : {COut, Out} <= BU;   // BIT/TRB/TSB
+//    6'b000001 : {COut, Out} <= RU;   // RMBx, SMBx
+//    default   : {COut, Out} <= LST;  // Load/Store/Transfer Operations
+//endcase
+
+always @(*) {COut, Out} <= LU | AU | DU | SU | BU | RU | LST;
 
 //  Assign ALU (Result) Valid Output (removed pipeline register 12B04, mam)
 
@@ -737,23 +765,20 @@ assign Valid = |{LU_Valid,
 
 always @(*)
 begin
-    if(Rst)
-        CC_Out <= #1 1;
-    else
-        case(CCSel)
-            pBBR    : CC_Out <= |RU;    // Added for Rockwell instructions
-            pBBS    : CC_Out <= |RU;    // Added for Rockwell instructions
-            //
-            pCC     : CC_Out <= ~C;
-            pCS     : CC_Out <=  C;
-            pNE     : CC_Out <= ~Z;
-            pEQ     : CC_Out <=  Z;
-            pVC     : CC_Out <= ~V;
-            pVS     : CC_Out <=  V;
-            pPL     : CC_Out <= ~N;
-            pMI     : CC_Out <=  N;
-            default : CC_Out <=  1;
-        endcase 
+    case(CCSel)
+        pBBR    : CC_Out <= |RU;    // Added for Rockwell instructions
+        pBBS    : CC_Out <= |RU;    // Added for Rockwell instructions
+        //
+        pCC     : CC_Out <= ~C;
+        pCS     : CC_Out <=  C;
+        pNE     : CC_Out <= ~Z;
+        pEQ     : CC_Out <=  Z;
+        pVC     : CC_Out <= ~V;
+        pVS     : CC_Out <=  V;
+        pPL     : CC_Out <= ~N;
+        pMI     : CC_Out <=  N;
+        default : CC_Out <=  1;
+    endcase 
 end
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright 2012 by Michael A. Morris, dba M. A. Morris & Associates
+//  Copyright 2012-2013 by Michael A. Morris, dba M. A. Morris & Associates
 //
 //  All rights reserved. The source code contained herein is publicly released
 //  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -62,6 +62,9 @@
 //
 //  1.01    12B19   MAM     Renamed module: MAM6502_BIN => M65C02_BIN.
 //
+//  1.10    13H04   MAM     Made the output a 0 when enable not asserted. Makes
+//                          the module compatible with an OR bus.
+//
 // Additional Comments: 
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -102,8 +105,8 @@ end
 
 always @(*)
 begin
-    Out   <= {C7, S};
-    OV    <= (C7 ^ C6);
+    Out   <= ((En) ? {C7, S}   : 0);
+    OV    <= ((En) ? (C7 ^ C6) : 0);
     Valid <= En;
 end
 

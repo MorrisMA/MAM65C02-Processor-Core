@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright 2012 by Michael A. Morris, dba M. A. Morris & Associates
+//  Copyright 2012-2013 by Michael A. Morris, dba M. A. Morris & Associates
 //
 //  All rights reserved. The source code contained herein is publicly released
 //  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -66,6 +66,9 @@
 //  1.02    12B19   MAM     Renamed module: MAM6502 => M6502_BCD.
 //
 //  1.10    12K17   MAM     Converted MSN_GT9, MSN_GT8, and LSN_GT9 to ROMs
+//
+//  1.20    13H04   MAM     Converted output so it generates a 0 until En signal
+//                          is asserted. Makes module compatible with an OR bus.
 //
 // Additional Comments: 
 //
@@ -235,8 +238,8 @@ end
 
 always @(*)
 begin
-    Out   <= {(rOp ^ DA[1]), Adj};
-    OV    <= DA[1];
+    Out   <= ((rEn) ? {(rOp ^ DA[1]), Adj} : 0);
+    OV    <= ((rEn) ? DA[1]                : 0);
     Valid <= rEn;
 end
 
