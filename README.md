@@ -6,11 +6,19 @@ All Rights Reserved.
 
 Released under LGPL.
 
+News
+----
+
+Recently completed tests have verified the M65C02 soft-
+processor to operate as designed at a frequency of 73.728 MHz in an XC3S50A-
+4VQG100I FPGA. See below for a more complete description of Release 2.7.2. 
+with which this milestone was achieved.
+
 General Description
 -------------------
 
-This project provides a microprogrammed implementation of the WDC W65C02 
-microprocessor.
+This project provides a microprogrammed synthesizable IP core compatible with 
+the WDC and Rockwell 65C02 microprocessors. 
 
 It is provided as a core. Several external components are required to form a 
 functioning processor: (1) memory, (2) interrupt controller, and (3) I/O 
