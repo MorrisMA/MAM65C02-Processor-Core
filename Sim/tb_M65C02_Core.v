@@ -282,7 +282,7 @@ M65C02_RAM  #(
                 .ZP(1'b0),
 //                .Ext(1'b0),     // 2 cycle memory
 //                .ZP(1'b0),
-//                .Ext(1'b0),   // 1 cycle memory
+//                .Ext(1'b0),     // 1 cycle memory
 //                .ZP(1'b1),
                 .WE(ROM_WE),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),
@@ -305,7 +305,7 @@ M65C02_RAM  #(
                 .ZP(1'b0),
 //                .Ext(1'b0),     // 2 cycle memory
 //                .ZP(1'b0),
-//                .Ext(1'b0),   // 1 cycle memory
+//                .Ext(1'b0),     // 1 cycle memory
 //                .ZP(1'b1),
                 .WE(RAM_WE),
                 .AI(AO[(pRAM_AddrWidth - 1):0]),

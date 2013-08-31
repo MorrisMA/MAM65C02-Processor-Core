@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-//  Copyright 2009-2013 by Michael A. Morris, dba M. A. Morris & Associates
+//  Copyright 2009-2012 by Michael A. Morris, dba M. A. Morris & Associates
 //
 //  All rights reserved. The source code contained herein is publicly released
 //  under the terms and conditions of the GNU Lesser Public License. No part of
@@ -389,16 +389,11 @@
 //                          microprogram. RMBx/SMBx can use the RMW_DP micro-
 //                          routine, but BBRx/BBSx require a new microroutine.
 //
-//  3.00    13H04           Made the internal bus multiplexers into a one-hot
-//                          decoded OR bus. Had to make some minor adjustments
-//                          to the LST_En and En_RU signals to accomodate the
-//                          changes in the bus multiplexer implementation.
-//
 // Additional Comments:
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-module M65C02_ALU #(
+module M65C02_ALU_v2 #(
     parameter pStkPtr_Rst = 0  // Stack Pointer Value after Reset
 )(
     input   Rst,            // System Reset - synchronous reset 
@@ -524,33 +519,45 @@ reg     COut;                   // Carry Out -> input to C
 reg     [5:0] PSW;              // Processor Status Word (Register)
 wire    N, V, D, I, Z, C;       // Individual, Registered Bits in PSW
 
-wire    [7:0] W, U, Q;          // Adder Input Busses
-wire    [7:0] T, R;
-wire    Ci;                     // Adder Carry In signal
+wire    [7:0] W, U;             // Adder Input Busses
+reg     [7:0] Q;
+wire    [7:0] T;
+reg     [7:0] R;
+
+reg     Ci;                     // Adder Carry In signal
 
 //  ALU Component Output Busses
 
+reg     En_LU;                  // Logic Unit Enable
 reg     [8:0] LU;               // Logic Unit Output
 reg     LU_Valid;               // LU Output Valid
+
+reg     En_AU;                  // Adder Unit Enable
 wire    [8:0] AU;               // Adder Unit Output
 wire    AU_Valid;               // AU Output Valid
+
+reg     En_DU;                  // Decimal (BCD) Unit Enable
 wire    [8:0] DU;               // Decimal (BCD) Unit Output
 wire    DU_Valid;               // DU Output Valid
+
+reg     En_SU;                  // Shift/Rotate Unit Enable
 reg     [8:0] SU;               // Shift/Rotate Unit Output
 reg     SU_Valid;               // SU Output Valid
+
+reg     En_BU;                  // Bit Unit Enable
 reg     [8:0] BU;               // Bit Unit Output
 reg     BU_Valid;               // BU Output Valid
 
+reg     En_RU;                  // Rockwell Unit Enable
 reg     [8:0] RU;               // Rockwell Unit Output
 reg     RU_Valid;               // RU Output Valid
 
-wire    LST_En;                 // Load/Store/Transfer Enable
-reg     [5:0] LST_Sel;          // Load/Store/Transfer Select ROM
+reg     LST_En;                 // Load/Store/Transfer Enable
 reg     [8:0] LST;              // Load/Store/Transfer Output Multiplexer
 
 reg     SelA, SelX, SelY, SelS, SelP;   // Decoded Register Write Selects
 
-wire    OV;                     // Arithmetic Unit Overflow Flag
+reg     OV;                     // Arithmetic Unit Overflow Flag
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -561,62 +568,93 @@ wire    OV;                     // Arithmetic Unit Overflow Flag
 
 assign W = ((QSel[0]) ? M : A);     // ? INC M/DEC M : Default
 assign U = ((QSel[0]) ? Y : X);     // ? INY/DEY/CPY : INX/DEX/CPX
-assign Q = ((QSel[1]) ? U : W);
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        Q <= #1 0;
+    else if(En)
+        Q <= #1 ((QSel[1]) ? U : W);
+end
 
 // R Multiplexer
 
-assign T = ((RSel) ? 8'h01 : M);    // ? INC/DEC     : ADC/SBC/CMP (default)
-assign R = ((Sub)  ? ~T    : T);    // ? SBC/DEC/CMP : ADC/INC (default)
+assign T = ((RSel) ? 8'h01 : M);    // ? INC/DEC : ADC/SBC/CMP(default)
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        R <= #1 0;
+    else if(En)
+        R <= #1 ((Sub) ? ~T : T);   // ? SBC/DEC/CMP : ADC/INC(default)
+end
 
 // Carry In Multiplexer
 
-assign Ci = ((CSel) ? Sub : C);     // ? INC/DEC/CMP : ADC/SBC (default)
+always @(posedge Clk)
+begin
+    if(Rst)
+        Ci <= #1 0;
+    else if(En)
+        Ci <= #1 ((CSel) ? Sub : C);    // ? INC/DEC/CMP : ADC/SBC (default)
+end
 
 //  M65C02 Logic, Arithmetic, Shift, and Bit Unit Implementations
 
+//  Generate Functional Unit Enables
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        {En_LU, En_AU, En_DU, En_SU, En_BU, En_RU, LST_En} <= #1 0;
+    else begin
+        En_LU  <= #1 (En & (Op[3:2] == 2'b00) & |Op[1:0]);
+        En_AU  <= #1 (En & (  (  (Op == pALU_ADC) | (Op == pALU_SBC)) & ~D)
+                            | (  (Op == pALU_INC)
+                               | (Op == pALU_DEC)
+                               | (Op == pALU_CMP)));
+        En_DU  <= #1 (En & ((Op == pALU_ADC) | (Op == pALU_SBC)) & D);
+        En_SU  <= #1 (En & (Op[3:2] == 2'b10));
+        En_BU  <= #1 (En & ((Op[3:2] == 2'b11) & ~(Op == pALU_CMP)));
+        En_RU  <= #1 (En & (CCSel[4:2] == 4'b001));
+        LST_En <= #1 (En & (Op == pALU_NOP));
+    end
+end
+
 // Logic Unit Implementation
 
-assign En_LU = (En & (Op[3:2] == 2'b00) & |Op[1:0]);
-
-always @(*)
+always @(posedge Clk)
 begin
-    if(En_LU)
+    if(Rst)
+        LU <= #1 0;
+    else if(En_LU)
         case(Op[1:0])
-            2'b01   : LU <= {1'b0, A & M};           // AND
-            2'b10   : LU <= {1'b0, A | M};           // ORA
-            default : LU <= {1'b0, A ^ M};           // EOR
+            2'b01   : LU <= {1'b0, A & M};  // AND
+            2'b10   : LU <= {1'b0, A | M};  // ORA
+            default : LU <= {1'b0, A ^ M};  // EOR
         endcase
-    else
-        LU <= 0;
 end
 
-always @(*)
-begin
-    LU_Valid <= En_LU;
-end
+always @(posedge Clk) LU_Valid <= #1 ((Rst) ? 0 : En_LU);
 
 //  Binary Adder Unit Implementation (INC/INX/INY/DEC/DEX/DEY/CMP, ADC/SBC)
 
-assign En_AU = (  (En & (  (Op == pALU_ADC) | (Op == pALU_SBC)) & ~D)
-                | (En & (  (Op == pALU_INC)
-                         | (Op == pALU_DEC)
-                         | (Op == pALU_CMP))));
-
-M65C02_BIN  BIN (
+M65C02A_BIN BIN (
+                .Rst(Rst),
+                .Clk(Clk),
                 .En(En_AU),
                 .A(Q),
                 .B(R),
                 .Ci(Ci),
-                .Out(AU),
+                .Out(AU[7:0]),
+                .Co(AU[8]),
                 .OV(OV_AU),
                 .Valid(AU_Valid)
             );
 
 //  Decimal (BCD) Adder Unit Implementation (ADC/SBC (Decimal-Only))
 
-assign En_DU = (En & ((Op == pALU_ADC) | (Op == pALU_SBC)) & D);
-
-M65C02_BCD  BCD (
+M65C02A_BCD BCD (
                 .Rst(Rst),
                 .Clk(Clk),
                 .En(En_DU),
@@ -624,57 +662,54 @@ M65C02_BCD  BCD (
                 .A(Q),
                 .B(R),
                 .Ci(Ci),
-                .Out(DU),
+                .Out(DU[7:0]),
+                .Co(DU[8]),
                 .OV(OV_DU),
                 .Valid(DU_Valid)
             );
 
 //  Multiplex Overflow based on the Adder used
 
-assign OV = ((AU_Valid) ? OV_AU : OV_DU);
+always @(posedge Clk)
+begin
+    if(Rst)
+        OV <= #1 0;
+    else if(|{AU_Valid, DU_Valid})
+        OV <= #1 ((DU_Valid) ? OV_DU : OV_AU);
+end
 
 //  Shift Unit Implementation
 
-assign En_SU = (En & (Op[3:2] == 2'b10));
-
-always @(*)
+always @(posedge Clk)
 begin
-    if(En_SU)
+    if(Rst)
+        SU <= #1 0;
+    else if(En_SU)
         case(Op[1:0])
-            2'b00 : SU <= {W[7], {W[6:0], 1'b0}};   // ASL
-            2'b01 : SU <= {W[0], {1'b0, W[7:1]}};   // LSR
-            2'b10 : SU <= {W[7], {W[6:0], C}};      // ROL
-            2'b11 : SU <= {W[0], {C, W[7:1]}};      // ROR
+            2'b00 : SU <= #1 {W[7], {W[6:0], 1'b0}};   // ASL
+            2'b01 : SU <= #1 {W[0], {1'b0, W[7:1]}};   // LSR
+            2'b10 : SU <= #1 {W[7], {W[6:0],    C}};   // ROL
+            2'b11 : SU <= #1 {W[0], {C,    W[7:1]}};   // ROR
         endcase
-    else
-        SU <= 0;
 end
 
-always @(*)
-begin
-    SU_Valid <= En_SU;
-end
+always @(posedge Clk) SU_Valid <= #1 ((Rst) ? 0 : En_SU);
 
 // Bit Unit Implementation
 
-assign En_BU = (En & ((Op[3:2] == 2'b11) & ~(Op == pALU_CMP)));
-
-always @(*)
+always @(posedge Clk)
 begin
-    if(En_BU)
+    if(Rst)
+        BU <= #1 0;
+    else if(En_BU)
         case(Op[1:0])
-            2'b01   : BU <= {1'b0,  ~A & M};    // TRB
-            2'b10   : BU <= {1'b0,   A | M};    // TSB
-            default : BU <= {1'b0,   A & M};    // BIT
+            2'b01   : BU <= #1 {1'b0,  ~A & M};     // TRB
+            2'b10   : BU <= #1 {1'b0,   A | M};     // TSB
+            default : BU <= #1 {1'b0,   A & M};     // BIT
         endcase
-    else
-        BU <= 0;
 end
 
-always @(*)
-begin
-    BU_Valid <= En_BU;
-end
+always @(posedge Clk) BU_Valid <= #1 ((Rst) ? 0 : En_BU);
 
 //  Rockwell Unit 
 //  Capabilities expanded to execute the Rockwell RSBx, SMBx, BBRx, and BBSx
@@ -687,57 +722,38 @@ end
 //  Instead, the mask is provided by least significant 8 bits of the fixed
 //  microword, which was added as an additional input to the module.
 
-assign En_RU = (CCSel[4:2] == 4'b001);
-
-always @(*)
+always @(posedge Clk)
 begin
-    if(En_RU)
+    if(Rst)
+        RU <= #1 0;
+    else if(En_RU)
         case(CCSel[1:0])
             2'b00 : RU <= {1'b0, Msk |  M};    // SMBx
             2'b01 : RU <= {1'b0, Msk &  M};    // RMBx
             2'b10 : RU <= {1'b0, Msk &  M};    // BBSx
             2'b11 : RU <= {1'b0, Msk & ~M};    // BBRx
         endcase
-    else
-        RU <= 0;
 end
 
-always @(*) RU_Valid <= En_RU;
-
-//  Load/Store/Transfer Enable
-
-assign LST_En = ((Op == pALU_NOP) & ~(CCSel[4:2] == 4'b001));
+always @(posedge Clk) RU_Valid <= #1 ((Rst) ? 0 : En_RU);
 
 //  Load/Store/Transfer Multiplexer
 
-always @(*)
+always @(posedge Clk)
 begin
-    case(OSel)
-        3'b000 : LST_Sel <= 6'b000_00_1;          // LDA/PLA/LDX/PLX/LDY/PLY/PLP
-        3'b001 : LST_Sel <= 6'b100_00_0;          // STA/TAX/TAY/PHA
-        3'b010 : LST_Sel <= 6'b010_00_0;          // STX/TXA/TXS/PHX
-        3'b011 : LST_Sel <= 6'b001_00_0;          // STY/TYA/PHY
-        3'b100 : LST_Sel <= 6'b000_00_0;          // STZ
-        3'b101 : LST_Sel <= 6'b000_10_0;          // TSX
-        3'b110 : LST_Sel <= 6'b000_01_0;          // PHP
-        3'b111 : LST_Sel <= 6'b000_00_1;          // LDA/PLA/LDX/PLX/LDY/PLY/PLP
-    endcase
-end
-
-always @(*)
-begin
-    if(LST_En)
-        LST <= (  ((LST_Sel[5]) ? {1'b0, A} : 0)  // STA/TAX/TAY/PHA 
-                | ((LST_Sel[4]) ? {1'b0, X} : 0)  // STX/TXA/TXS/PHX 
-                | ((LST_Sel[3]) ? {1'b0, Y} : 0)  // STY/TYA/PHY
-                | ((LST_Sel[2]) ? {1'b0, S} : 0)  // TSX 
-                | ((LST_Sel[1]) ? {1'b0, P} : 0)  // PHP
-                | ((LST_Sel[0]) ? {1'b0, M} : 0));// LDA/PLA/LDX/PLX/LDY/PLY/PLP
+    if(Rst)
+        LST <= #1 {1'b0, A};
     else
-        LST <= 0;                                 // STZ
+        case(OSel)
+            pSel_A  : LST <= #1 {1'b0, A};     // STA/TAX/TAY/PHA
+            pSel_X  : LST <= #1 {1'b0, X};     // STX/TXA/TXS/PHX
+            pSel_Y  : LST <= #1 {1'b0, Y};     // STY/TYA/PHY
+            pSel_Z  : LST <= #1 {1'b1, 8'b0};  // STZ
+            pSel_S  : LST <= #1 {1'b0, S};     // TSX
+            pSel_P  : LST <= #1 {1'b0, P};     // PHP
+            default : LST <= #1 {1'b0, M};     // LDA/PLA/LDX/PLX/LDY/PLY/PLP
+        endcase    
 end
-
-always @(*) {COut, Out} <= LU | AU | DU | SU | BU | RU | LST;
 
 //  Assign ALU (Result) Valid Output (removed pipeline register 12B04, mam)
 
@@ -749,24 +765,42 @@ assign Valid = |{LU_Valid,
                  RU_Valid,
                  LST_En   };
 
-//  Condition Code Output
+//  ALU Output Multiplexer
 
 always @(*)
 begin
-    case(CCSel)
-        pBBR    : CC_Out <= |RU;    // Added for Rockwell instructions
-        pBBS    : CC_Out <= |RU;    // Added for Rockwell instructions
-        //
-        pCC     : CC_Out <= ~C;
-        pCS     : CC_Out <=  C;
-        pNE     : CC_Out <= ~Z;
-        pEQ     : CC_Out <=  Z;
-        pVC     : CC_Out <= ~V;
-        pVS     : CC_Out <=  V;
-        pPL     : CC_Out <= ~N;
-        pMI     : CC_Out <=  N;
-        default : CC_Out <=  1;
-    endcase 
+    case({LU_Valid, AU_Valid, DU_Valid, SU_Valid, BU_Valid, RU_Valid})
+        6'b100000 : {COut, Out} <= LU;   // ORA/AND/EOR
+        6'b010000 : {COut, Out} <= AU;   // INC/DEC/INX/DEX/INY/DEY/CMP/ADC/SBC
+        6'b001000 : {COut, Out} <= DU;   // ADC/SBC (BCD-Only)
+        6'b000100 : {COut, Out} <= SU;   // ASL/LSR/ROL/ROR
+        6'b000010 : {COut, Out} <= BU;   // BIT/TRB/TSB
+        6'b000001 : {COut, Out} <= RU;   // RMBx, SMBx
+        default   : {COut, Out} <= LST;  // Load/Store/Transfer Operations
+    endcase
+end
+
+//  Condition Code Output
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        CC_Out <= #1 1;
+    else
+        case(CCSel)
+            pBBR    : CC_Out <= |RU;    // Added for Rockwell instructions
+            pBBS    : CC_Out <= |RU;    // Added for Rockwell instructions
+            //
+            pCC     : CC_Out <= ~C;
+            pCS     : CC_Out <=  C;
+            pNE     : CC_Out <= ~Z;
+            pEQ     : CC_Out <=  Z;
+            pVC     : CC_Out <= ~V;
+            pVS     : CC_Out <=  V;
+            pPL     : CC_Out <= ~N;
+            pMI     : CC_Out <=  N;
+            default : CC_Out <=  1;
+        endcase 
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -775,23 +809,85 @@ end
 
 //  Decode Register Write Enables
 
-always @(*)
+always @(posedge Clk)
 begin
-    casex({Reg_WE, WSel})
-        6'b001xxx   : {SelA, SelX, SelY, SelS, SelP} <= 5'b1000_1;
-        6'b100001   : {SelA, SelX, SelY, SelS, SelP} <= 5'b1000_1;
-        6'b010xxx   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0100_1;
-        6'b100010   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0100_1;
-        6'b011xxx   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0010_1;
-        6'b100011   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0010_1;
-        6'b101xxx   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0001_0;
-        6'b100101   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0001_0;
-        6'b110xxx   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0000_1;
-        6'b100110   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0000_1;
-        6'b111xxx   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0000_1;
-        6'b100111   : {SelA, SelX, SelY, SelS, SelP} <= 5'b0000_1;
-        default     : {SelA, SelX, SelY, SelS, SelP} <= 5'b0000_0;
-    endcase
+    if(Rst)
+        {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+//    else if(En)
+    else
+        case({Reg_WE, WSel})
+            6'b000000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b000111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+//
+            6'b001000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b001111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+//
+            6'b010000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b010111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+//
+            6'b011000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b011111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+//
+            6'b100000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b100001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b1000_1;
+            6'b100010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0100_1;
+            6'b100011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0010_1;
+            6'b100100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_0;
+            6'b100101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b100110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b100111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+//
+            6'b101000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+            6'b101111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0001_0;
+//
+            6'b110000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b110111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+//
+            6'b111000   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111001   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111010   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111011   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111100   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111101   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111110   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+            6'b111111   : {SelA, SelX, SelY, SelS, SelP} <= #1 5'b0000_1;
+        endcase
 end
 
 ///////////////////////////////////////////////////////////////////////////////

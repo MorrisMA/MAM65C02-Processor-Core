@@ -343,9 +343,9 @@ module M65C02 #(
     parameter pStkPtr_Rst  = 8'hFF,         // SP Value after Rst
 
     parameter pIRQ_Vector = 16'hFFFE,       // IRQ Vector Addrs
-    parameter pRst_Vector = 16'hFFFC,       // Reset Vector Addrs
+    parameter pBRK_Vector = 16'hFFFE,       // Brk Vector Addrs
+    parameter pRST_Vector = 16'hFFFC,       // Reset Vector Addrs
     parameter pNMI_Vector = 16'hFFFA,       // NMI Vector Addrs
-    parameter pBrk_Vector = 16'hFFFE,       // Brk Vector Addrs
     
     parameter pInt_Hndlr  = 9'h021,         // Microprogram Interrupt Handler
 
@@ -358,7 +358,7 @@ module M65C02 #(
 
     parameter pM65C02_uPgm  = "M65C02_uPgm_V3a.coe",
     parameter pM65C02_IDec  = "M65C02_Decoder_ROM.coe",
-    parameter pBootROM_File = "M65C02_Tst3.txt"
+    parameter pBootROM_File = "M65C02_Tst5.txt"
 )(
     input   nRst,               // System Reset Input
     output  nRstO,              // Internal System Reset Output (OC w/ PU)
@@ -390,6 +390,8 @@ module M65C02 #(
 
     output  reg nWait,          // Driven low by Wait instruction (ASIC-only)
     
+    output  reg [4:0] LED,      // LED Test Register
+    
     output  nSel,               // SPI I/F Chip Select
     output  SCk,                // SPI I/F Serial Clock
     output  MOSI,               // SPI I/F Master Out/Slave In Serial Data
@@ -401,20 +403,16 @@ module M65C02 #(
 //  Declarations
 //
 
-reg     [3:0] DCM_Rst;          // Stretched DCM Reset (see Table 3-6 UG331)
-reg     nRst_IFD;               // Input FF for external Reset signal
-reg     [3:0] xRst;             // Stretched external reset (Buf_ClkIn)
-wire    Rst_M65C02;             // Combination of DCM_Rst and xRst
-reg     [3:0] Rst_Dly;          // Stretched internal reset (Buf_ClkIn)
-wire    FE_Rst_Dly;             // Falling edge of Rst_Dly (Clk)
-reg     Rst;                    // Internal reset (Clk)
+wire    Rst;                    // Internal reset (Clk)
 reg     OE_nRstO;               // Internal reset output (Buf_ClkIn)
 
-wire    RE_NMI;                 // Output pulse signal from nNMI edge detector
-wire    CE_NMI;                 // NMI latch/register clock enable
-reg     NMI;                    // NMI latch/register to hold NMI until serviced
+//wire    RE_NMI;                 // Output pulse signal from nNMI edge detector
+//wire    CE_NMI;                 // NMI latch/register clock enable
+//reg     NMI;                    // NMI latch/register to hold NMI until serviced
+wire    NMI;                    // NMI latch/register to hold NMI until serviced
 
-reg     nIRQ_IFD, IRQ;          // External maskable interrupt request inputs
+//reg     nIRQ_IFD, IRQ;          // External maskable interrupt request inputs
+wire    IRQ;                    // External maskable interrupt request input
 
 wire    Int;                    // Interrupt handler interrupt signal to M65C02
 wire    [15:0] Vector;          // Interrupt handler interrupt vector to M65C02
@@ -461,6 +459,7 @@ reg     [7:0] DI_IFD;
 reg     nWP;                        // Boot/Monitor RAM write protect
 reg     WE_Boot;                    // Write Enable for the Boot/Monitor ROM
 reg     [(pROM_AddrWidth-1):0] iAO; // Internal address pipeline register
+reg     [7:0] iDO;                  // Internal output data pipeline register
 reg     [7:0] Boot [((2**pROM_AddrWidth)-1):0];  // Boot ROM/RAM (2k x 8)
 reg     [7:0] Boot_DO;              // Boot/Monitor ROM output data (absorbed)
 reg     [7:0] Boot_IFD;             // Boot/Monitor ROM output pipeline register
@@ -470,90 +469,18 @@ reg     [7:0] Boot_IFD;             // Boot/Monitor ROM output pipeline register
 //  Implementation
 //
 
-//  Implement internal clock generator using DCM and DFS. DCM/DFS multiplies
-//  external clock reference by 4.
+// Instantiate the Clk and Reset Generator Module
 
-ClkGen  ClkGen (
-            .USER_RST_IN(DCM_Rst[0]),           // DCM Rst generated on FE Lock 
+M65C02_ClkGen   ClkGen (
+                    .nRst(nRst), 
+                    .ClkIn(ClkIn),
+                    
+                    .Clk(Clk),              // Clk      <= (M/D) x ClkIn
+                    .Clk_UART(),            // Clk_UART <= 2x ClkIn 
+                    .Buf_ClkIn(Buf_ClkIn),  // RefClk   <= Buffered ClkIn
 
-            .CLKIN_IN(ClkIn),                   // ClkIn          = 18.432 MHz
-            .CLKIN_IBUFG_OUT(Buf_ClkIn),        // Buffered ClkIn = 18.432 MHz
-
-            .CLKFX_OUT(Clk),                    // DCM ClkFX_Out  = 73.728 MHz 
-
-            .CLK0_OUT(),                        // Clk0_Out unused 
-            .CLK2X_OUT(),                       // Clk2x_Out (FB) = 36.864 MHz 
-            
-            .LOCKED_OUT(DCM_Locked)             // When 1, DCM Locked 
-        );
-      
-//  Detect falling edge of DCM_Locked, and generate DCM reset pulse at least 4
-//  ClkIn periods wide if a falling edge is detected. (see Table 3-6 UG331)
-        
-fedet   FE1 (
-            .rst(1'b0),             // No reset required for this circuit 
-            .clk(Buf_ClkIn),        // Buffered DCM input Clock
-            .din(DCM_Locked),       // DCM Locked signal
-            .pls(FE_DCM_Locked)     // Falling Edge of DCM_Locked signal
-        );
-        
-always @(posedge Buf_ClkIn or posedge FE_DCM_Locked)
-begin
-    if(FE_DCM_Locked)
-        DCM_Rst <= #1 ~0;
-    else
-        DCM_Rst <= #1 {1'b0, DCM_Rst[3:1]};
-end
-
-//  Synchronize asynchronous external reset, nRst, to internal clock and
-//      stretch (extend) by 16 clock cycles after external reset deasserted
-//
-//  With Spartan 3A(N) FPGA family use synchronous reset for reset operations
-//  per synthesis recommendations. so only these FFs will use asynchronous
-//  reset, and the remainder of the design will use synchronous reset.
-
-always @(posedge Buf_ClkIn or negedge DCM_Locked)
-begin
-    if(~DCM_Locked)
-        nRst_IFD <= #1 0;
-    else
-        nRst_IFD <= #1 nRst;
-end
-
-always @(posedge Buf_ClkIn or negedge DCM_Locked)
-begin
-    if(~DCM_Locked)
-        xRst <= #1 ~0;
-    else
-        xRst <= #1 {~nRst_IFD, xRst[2:1]};
-end        
-
-assign Rst_M65C02 = ((|{~nRst_IFD, xRst}) | ~DCM_Locked);
-
-always @(posedge Buf_ClkIn or posedge Rst_M65C02)
-begin
-    if (Rst_M65C02)
-        Rst_Dly <= #1 ~0;
-    else
-        Rst_Dly <= #1 {1'b0, Rst_Dly[3:1]};
-end
-
-//  synchronize Rst to DCM/DFS output clock (if DCM Locked)
-
-fedet   FE2 (
-            .rst(Rst_M65C02),       
-            .clk(Clk),              // System Clock
-            .din(|Rst_Dly),         // System Reset Delay
-            .pls(FE_Rst_Dly)        // Falling Edge of Rst_Dly
-        );
-
-always @(posedge Clk or posedge Rst_M65C02)
-begin
-    if(Rst_M65C02)
-        Rst <= #1 1;
-    else if(FE_Rst_Dly)
-        Rst <= #1 0;
-end
+                    .Rst(Rst)
+                );
 
 //  Generate Reset output for use by external circuits
 
@@ -571,33 +498,60 @@ assign nRstO = ((OE_nRstO) ? 0 : 1'bZ);
 //  Process External NMI and maskable IRQ Interrupts
 //
 
-//  Perform falling edge detection on the external non-maskable interrupt input
+////  Perform falling edge detection on the external non-maskable interrupt input
+//
+//fedet   FE3 (
+//            .rst(Rst), 
+//            .clk(Clk), 
+//            .din(nNMI), 
+//            .pls(RE_NMI)
+//        );
+//
+////  Capture and hold the rising edge pulse for NMI in NMI FF until serviced by
+////      the processor.
+//
+//assign CE_NMI = (Rst | IntSvc | RE_NMI);
+//always @(posedge Clk) NMI <= #1 ((CE_NMI) ? RE_NMI : 0);
+//
+////  Synchronize external IRQ input to Clk
+//
+//always @(posedge Clk or posedge Rst) nIRQ_IFD <= #1 ((Rst) ? 1 :  nIRQ);
+//always @(posedge Clk or posedge Rst) IRQ      <= #1 ((Rst) ? 0 : ~nIRQ_IFD);
+//
+//assign Brk    = (Mode == pBRK);
+//assign Int    = (NMI | (~IRQ_Msk & IRQ));
+//assign Vector = ((Int) ? ((NMI) ? pNMI_Vector
+//                                : pIRQ_Vector)
+//                       : ((Brk) ? pBrk_Vector
+//                                : pRst_Vector));
+//                       
 
-fedet   FE3 (
-            .rst(Rst), 
-            .clk(Clk), 
-            .din(nNMI), 
-            .pls(RE_NMI)
-        );
+// Instantiate M65C02 Interrupt Handler module
 
-//  Capture and hold the rising edge pulse for NMI in NMI FF until serviced by
-//      the processor.
+M65C02_IntHndlr #(
+                    .pRST_Vector(pRST_Vector),
+                    .pIRQ_Vector(pIRQ_Vector),
+                    .pBRK_Vector(pBRK_Vector),
+                    .pNMI_Vector(pNMI_Vector)
+                ) IntHndlr (
+                    .Rst(Rst), 
+                    .Clk(Clk),
+                    
+                    .nNMI(nNMI), 
+                    .nIRQ(nIRQ), 
+                    .Mode(Mode), 
 
-assign CE_NMI = (Rst | IntSvc | RE_NMI);
-always @(posedge Clk) NMI <= #1 ((CE_NMI) ? RE_NMI : 0);
+                    .IRQ_Msk(IRQ_Msk),
+                    .IntSvc(IntSvc),
+                    
+                    .Int(Int), 
+                    .Vector(Vector), 
 
-//  Synchronize external IRQ input to Clk
+                    .NMI(NMI), 
+                    .IRQ(IRQ), 
+                    .Brk(Brk)
+                );
 
-always @(posedge Clk or posedge Rst) nIRQ_IFD <= #1 ((Rst) ? 1 :  nIRQ);
-always @(posedge Clk or posedge Rst) IRQ      <= #1 ((Rst) ? 0 : ~nIRQ_IFD);
-
-assign Brk    = (Mode == pBRK);
-assign Int    = (NMI | (~IRQ_Msk & IRQ));
-assign Vector = ((Int) ? ((NMI) ? pNMI_Vector
-                                : pIRQ_Vector)
-                       : ((Brk) ? pBrk_Vector
-                                : pRst_Vector));
-                       
 //  Synchronize BE input to Clk
 
 always @(posedge Clk or posedge Rst) BE_IFD <= #1 ((Rst) ? 0 : BE_In);
@@ -663,9 +617,9 @@ assign C8 = (MC == 0);      // 8th cycle of microcycle (Wait State Sequence)
 
 //  Assign Phi1O and Phi2O
 
-always @(posedge Clk or posedge Rst_M65C02)
+always @(posedge Clk or posedge Rst)
 begin
-    if(Rst_M65C02)
+    if(Rst)
         {Phi1O, Phi2O} <= #1 2'b01;
     else begin
         Phi1O <= #1 (C3 | C4 | C7 | C8);
@@ -696,7 +650,7 @@ assign nCE = ((BE) ? nCE_OFD : {4{1'bZ}});
 always @(posedge Clk)
 begin
     if(Rst)
-        {XA_OFD, AO_OFD} <= #1 {{4{1'b1}}, pRst_Vector};
+        {XA_OFD, AO_OFD} <= #1 {{4{1'b1}}, pRST_Vector};
     else
         {XA_OFD, AO_OFD} <= #1 {{4{AO[15]}}, AO};
 end
@@ -842,10 +796,13 @@ end
 
 always @(posedge Clk)
 begin
-    if(Rst)
-        iAO <= #1 pRst_Vector;
-    else if(C1)
+    if(Rst) begin
+        iAO <= #1 pRST_Vector;
+        iDO <= #1 0;
+    end else if(C1) begin
         iAO <= #1 AO;
+        iDO <= #1 DO;
+    end
 end
 
 initial
@@ -854,7 +811,7 @@ initial
 always @(posedge Clk)
 begin
     if(WE_Boot)
-        Boot[iAO] <= #1 DO;
+        Boot[iAO] <= #1 iDO;
         
     Boot_DO <= #1 Boot[iAO];
 end
@@ -872,5 +829,17 @@ end
 //  Multiplex the External and Internal Data sources
 
 assign DI = Boot_IFD | DI_IFD;
+
+//  LED Test Register
+
+assign WE_LED = (IO & (iAO[10:3] == 8'hFF) & (IO_Op == 1));
+
+always @(posedge Clk)
+begin
+    if(Rst)
+        LED <= #1 0;
+    else if(C3)
+        LED <= #1 ((WE_LED) ? iDO[7:3] : LED);
+end
 
 endmodule

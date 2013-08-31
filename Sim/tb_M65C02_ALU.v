@@ -217,9 +217,10 @@ M65C02_ALU  uut (
                 .CSel(CSel),
                 .WSel(WSel), 
                 .OSel(OSel), 
-                .CCSel(CCSel), 
+                .CCSel(CCSel),
+                .Msk(Msk),
                 
-                .M(M), 
+                .M(M),                
                 .Out(DO),
                 .Valid(Valid),
                 

@@ -68,7 +68,8 @@
 
 module tb_M65C02;
 
-parameter pRAM_AddrWidth = 11;
+parameter pRAM_AddrWidth = 14;
+parameter pSim_Loop      = 16'h0400;
 
 // UUT Signal Declarations
 
@@ -99,21 +100,41 @@ tri1    [ 3:0] XA;
 tri1    [15:0] A;
 tri1    [ 7:0] DB;
 
-tri1    nSel;
-tri1    SCk;
-tri1    MOSI;
-reg     MISO;
+//tri1    nSel;
+//tri1    SCk;
+//tri1    MOSI;
+//reg     MISO;
+
+wire    [4:0] LED;
 
 //  Define simulation variables
 
-integer i = 0;
-
 reg     Sim_nSO, Sim_nNMI, Sim_nIRQ;
+reg     [ 7:0] TestNum;
+reg     [17:0] chkdad, chkadd;
+
+//integer i = 0;
+
+integer cycle_cnt = 0;
+integer instr_cnt = 0;
+
+integer Loop_Start = 0;
+
+integer Hist_File = 0;          // File handle for instruction histogram
+//integer SV_Output = 0;          // File handle for State Vector Outputs
+
+reg     [31:0] Hist [255:0];    // Instruction Histogram array
+reg     [31:0] val;             // Instruction Histogram variable
+reg     [31:0] i, j;            // loop counters
+
+//reg     [((5*8) - 1):0] Op;     // Processor Mode Mnemonics String
+//reg     [((6*8) - 1):0] Opcode; // Opcode Mnemonics String
+//reg     [((9*8) - 1):0] AddrMd; // Addressing Mode Mnemonics String
 
 // Instantiate the Unit Under Test (UUT)
 
 M65C02  #(
-            .pBootROM_File("M65C02_Tst3.txt")
+            .pBootROM_File("M65C02_Tst5.txt")
         ) uut (
             .nRst(nRst),
             .nRstO(nRstO),
@@ -145,6 +166,8 @@ M65C02  #(
             
             .nWait(nWait), 
         
+            .LED(LED),
+            
             .nSel(nSel), 
             .SCk(SCk), 
             .MOSI(MOSI), 
@@ -182,14 +205,14 @@ reg     RAM_WE;
 M65C02_RAM  #(
                 .pAddrSize(pRAM_AddrWidth),
                 .pDataSize(8),
-                .pFileName("M65C02_RAM.txt")
+                .pFileName("65C02_FT.txt")
             ) RAM (
                 .Clk(~Phi2O),
 //                .Ext(1'b1),     // 4 cycle memory
 //                .ZP(1'b0),
 //                .Ext(1'b0),     // 2 cycle memory
 //                .ZP(1'b0),
-                .Ext(1'b0),   // 1 cycle memory
+                .Ext(1'b0),     // 1 cycle memory
                 .ZP(1'b1),
                 .WE(RAM_WE),
                 .AI(A[(pRAM_AddrWidth - 1):0]),
@@ -206,31 +229,60 @@ initial begin
     Sim_nIRQ = 0;
     BE_In    = 1;
     //Rdy      = 1;
-    MISO     = 1;
+    //MISO     = 1;
+    TestNum  = 0;
+    chkdad   = 0;
+    chkadd   = 0;
+
+    // Intialize Simulation Time Format
+    
+    $timeformat (-9, 3, " ns", 12);
+    
+    //  Initialize Instruction Execution Histogram array
+    
+    for(cycle_cnt = 0; cycle_cnt < 256; cycle_cnt = cycle_cnt + 1)
+        Hist[cycle_cnt] = 0;
+    cycle_cnt = 0;
+    
+    Hist_File = $fopen("M65C02_Hist_File.txt", "w");
+//    SV_Output = $fopen("M65C02_SV_Output.txt", "w");
 
     // Wait 100 ns for global reset to finish
+
     #101 nRst = 1;
     
     // Add stimulus here
     
+    // Start the Simulation Loop
+    
+    wait(A == pSim_Loop);
+    @(posedge Phi1O);
+    
     // Test WAI w/ IRQ_Mask set
     
-    @(negedge nWait);
-    for(i = 0; i < 4; i = i + 1) @(posedge Phi1O);
-    Sim_nIRQ = 1;
-    @(posedge nWait);
-    @(posedge Phi1O) Sim_nIRQ = 0;
-    
-    while(1) begin
-        @(posedge Phi1O);
-        if(A == 16'hF800) begin
-            @(posedge Phi1O);
-            @(posedge Phi1O);
-            $display("End of Simulation - Looping to Start detected/n");
-            $stop;
+    fork
+        begin
+            @(negedge nWait);
+            for(i = 0; i < 4; i = i + 1) @(posedge Phi1O);
+            Sim_nIRQ = 1;
+            @(posedge nWait);
+            @(posedge Phi1O) Sim_nIRQ = 0;
         end
-    end
-           
+
+        begin
+            while(1) begin
+                @(posedge Phi1O);
+                if(A == pSim_Loop) begin
+                    @(posedge Phi1O);
+                    @(posedge Phi1O);
+                    @(posedge Phi1O);
+                    $display("End of Simulation - Looping to Start detected/n");
+                    $display("\tSuccess - All enabled tests passed.\n");
+                    $stop;
+                end
+            end
+        end
+    join
 end
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,19 +290,34 @@ end
 //  Clocks
 //
 
-//always #20 ClkIn = ~ClkIn;
+//always #20.000 ClkIn = ~ClkIn;
 //always #27.127 ClkIn = ~ClkIn;
 always #33.908 ClkIn = ~ClkIn;
+//always #12.500 ClkIn = ~ClkIn;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Test Structures
 //
 
+always @(posedge nWr)
+begin
+    TestNum = ((A == 16'h0200) ? DB : TestNum);
+end
+
+always @(posedge nOE)
+begin
+    chkdad = ((A == 16'h3405) ? (chkdad + 1) : chkdad);
+end
+
+always @(posedge nOE)
+begin
+    chkadd = ((A == 16'h354E) ? (chkadd + 1) : chkadd);
+end
+
 //  Connect ROM/RAM to M65C02 memory bus
 
 //always @(*) ROM_WE <= Phi2O &  A[15] & ~nWr;
-
 always @(*) RAM_WE <= Phi2O & ~A[15] & ~nWr;
 
 //assign DB = ((~nOE) ? ((A[15]) ? ROM_DO : RAM_DO) : {8{1'bZ}});
@@ -272,6 +339,69 @@ end
 assign nSO  = ((Sim_nSO)  ? 0 : 1'bZ);
 assign nNMI = ((Sim_nNMI) ? 0 : 1'bZ);
 assign nIRQ = ((Sim_nIRQ) ? 0 : 1'bZ);
+
+//  Count number of cycles and the number of instructions between between
+//      0x0210 and the repeat at 0x0210 
+
+always @(posedge uut.ClkGen.Clk)
+begin
+    if((uut.ClkGen.Rst | ~uut.ClkGen.nRst))
+        cycle_cnt = 0;
+    else if(Phi1O & uut.C4)
+        cycle_cnt = ((A == 16'h0400) ? 1 : (cycle_cnt + 1));
+end
+
+always @(posedge uut.ClkGen.Clk)
+begin
+    if((uut.ClkGen.Rst | ~uut.ClkGen.nRst))
+        instr_cnt = 0;
+    else if(Sync & Phi1O & uut.C4)
+        instr_cnt = ((A == 16'h0400) ? 1 : (instr_cnt + 1));
+end
+
+//  Perform Instruction Histogramming for coverage puposes
+
+always @(posedge uut.ClkGen.Clk)
+begin
+//    $fstrobe(SV_Output, "%b, %b, %b, %h, %b, %b, %h, %b, %b, %b, %h, %b, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h",
+//             IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ref_Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
+
+    if(~(uut.ClkGen.Rst | ~uut.ClkGen.nRst)) begin
+        if(Sync & Phi2O & uut.C3) begin
+            if((A == 16'h0400)) begin
+                if((Loop_Start == 1)) begin
+                    for(i = 0; i < 16; i = i + 1)
+                        for(j = 0; j < 16; j = j + 1) begin
+                            val = Hist[(j * 16) + i];
+                            Hist[(j * 16) + i] = 0;
+                            if((j == 0))
+                                $fwrite(Hist_File, "\n%h : %h", ((j * 16) + i), val);
+                            else
+                                $fwrite(Hist_File, " %h", val);
+                        end
+                    $fclose(Hist_File);
+//                    $fclose(SV_Output);
+
+                    $display("\nTest Loop Complete\n");
+
+//                    $stop;
+                end else begin
+                    Loop_Start = 1;
+                end
+            end
+            val      = Hist[DB];
+            Hist[DB] = val + 1;
+        end
+    end
+end
+
+////  Test Monitor System Function
+//
+//always @(posedge Phi1O)
+//begin
+//    $monitor("%b, %b, %b, %h, %b, %b, %h, %b, %b, %b, %h, %b, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h, %h",
+//             IRQ_Msk, Sim_Int, Int, Vector, Done, SC, Mode, RMW, IntSvc, Rdy, IO_Op, Ref_Ack, AO, DI, DO, A, X, Y, S, P, PC, IR, OP1, OP2);
+//end
 
 endmodule
 
