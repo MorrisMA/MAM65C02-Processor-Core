@@ -509,3 +509,9 @@ MHz. If higher speeds are needed, then further optimization, including adding
 pipeline registers to the ALU, can be made. Some pipelining can be easily 
 added because of the 4 clock microcycle around which the soft-core processor 
 is built.
+
+#####Release 2.73
+
+Improved the modularity of the M65C02 top level module by creating modules for 
+clock generation and interrupt handling. Updated the design document, and 
+deleted unnecessary files.
