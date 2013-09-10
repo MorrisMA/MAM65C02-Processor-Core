@@ -130,7 +130,7 @@
 //  microcycle length of the M65C02.
 //
 // Dependencies:    M65C02_Core.v
-//                      M65C02_MPCv3.v
+//                      M65C02_MPCv4.v
 //                          M65C02_uPgm_V3a.coe (M65C02_uPgm_V3a.txt)
 //                          M65C02_Decoder_ROM.coe (M65C02_Decoder_ROM.txt)
 //                      M65C02_AddrGen.v
@@ -204,7 +204,7 @@
 //                          internal reset signal from the external nRst and the
 //                          DCM_Locked signal.
 //
-//  2.72    12H04   MAM     Removed unused code. Changed the DI multiplexer into
+//  2.72    13H04   MAM     Removed unused code. Changed the DI multiplexer into
 //                          simple OR gate. The FFs feeding into the OR gate are
 //                          forced to 0 if not selected. Changed to reset signal
 //                          for several output strobes and input registers. On
@@ -212,6 +212,10 @@
 //                          with the rising edge of the Wr strobe. DI_IFD is rst
 //                          if an internal data source is selected. BootIFD is
 //                          reset if an external data source is selected.
+//
+//  2.73    13H17   MAM     Adapted the M16C5x Clock Generator module for use
+//                          with M65C02. Also encapsulated the interrupt handler
+//                          function in another module.  
 //
 // Additional Comments:
 //
@@ -356,9 +360,9 @@ module M65C02 #(
 
     parameter pROM_AddrWidth = 11,          // Boot/Monitor ROM Addres Width
 
-    parameter pM65C02_uPgm  = "M65C02_uPgm_V3a.coe",
-    parameter pM65C02_IDec  = "M65C02_Decoder_ROM.coe",
-    parameter pBootROM_File = "M65C02_Tst5.txt"
+    parameter pM65C02_uPgm  = "Src/M65C02_uPgm_V3a.coe",
+    parameter pM65C02_IDec  = "Src/M65C02_Decoder_ROM.coe",
+    parameter pBootROM_File = "Src/M65C02_Tst5.txt"
 )(
     input   nRst,               // System Reset Input
     output  nRstO,              // Internal System Reset Output (OC w/ PU)
@@ -497,36 +501,6 @@ assign nRstO = ((OE_nRstO) ? 0 : 1'bZ);
 //
 //  Process External NMI and maskable IRQ Interrupts
 //
-
-////  Perform falling edge detection on the external non-maskable interrupt input
-//
-//fedet   FE3 (
-//            .rst(Rst), 
-//            .clk(Clk), 
-//            .din(nNMI), 
-//            .pls(RE_NMI)
-//        );
-//
-////  Capture and hold the rising edge pulse for NMI in NMI FF until serviced by
-////      the processor.
-//
-//assign CE_NMI = (Rst | IntSvc | RE_NMI);
-//always @(posedge Clk) NMI <= #1 ((CE_NMI) ? RE_NMI : 0);
-//
-////  Synchronize external IRQ input to Clk
-//
-//always @(posedge Clk or posedge Rst) nIRQ_IFD <= #1 ((Rst) ? 1 :  nIRQ);
-//always @(posedge Clk or posedge Rst) IRQ      <= #1 ((Rst) ? 0 : ~nIRQ_IFD);
-//
-//assign Brk    = (Mode == pBRK);
-//assign Int    = (NMI | (~IRQ_Msk & IRQ));
-//assign Vector = ((Int) ? ((NMI) ? pNMI_Vector
-//                                : pIRQ_Vector)
-//                       : ((Brk) ? pBrk_Vector
-//                                : pRst_Vector));
-//                       
-
-// Instantiate M65C02 Interrupt Handler module
 
 M65C02_IntHndlr #(
                     .pRST_Vector(pRST_Vector),
