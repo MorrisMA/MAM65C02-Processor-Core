@@ -42,7 +42,7 @@
 // Engineer:        Michael A. Morris 
 // 
 // Create Date:     12:06:18 08/18/2013 
-// Design Name:     M65C02 -  
+// Design Name:     WDC W65C02 Microprocessor Re-Implementation
 // Module Name:     M65C02_IntHndlr.v 
 // Project Name:    C:\XProjects\ISE10.1i\M65C02 
 // Target Devices:  SRAM-based FPGAs: XC3S50A-xVQ100I, XC3S200A-xVQ100I 

@@ -590,10 +590,7 @@ begin
         LU <= 0;
 end
 
-always @(*)
-begin
-    LU_Valid <= En_LU;
-end
+always @(*) LU_Valid <= En_LU;
 
 //  Binary Adder Unit Implementation (INC/INX/INY/DEC/DEX/DEY/CMP, ADC/SBC)
 
@@ -650,10 +647,7 @@ begin
         SU <= 0;
 end
 
-always @(*)
-begin
-    SU_Valid <= En_SU;
-end
+always @(*) SU_Valid <= En_SU;
 
 // Bit Unit Implementation
 
@@ -671,17 +665,17 @@ begin
         BU <= 0;
 end
 
-always @(*)
-begin
-    BU_Valid <= En_BU;
-end
+always @(*) BU_Valid <= En_BU;
 
 //  Rockwell Unit 
-//  Capabilities expanded to execute the Rockwell RSBx, SMBx, BBRx, and BBSx
-//  instructions. The CCSel field is used to select the operation:
-//      4 - SMBx; 4 - RMBx; 6 = BBSx; 7 - BBRx;
-//  if(CCSel[4:2] == 1) one of the Rockwell instructions is being executed;
-//  else a normal 65C02 instruction is being executed;
+//      Capabilities expanded to execute the Rockwell RSBx, SMBx, BBRx, and BBSx
+//      instructions. The CCSel field is used to select the operation:
+//          4 - SMBx; 4 - RMBx; 6 = BBSx; 7 - BBRx;
+//
+//      if(CCSel[4:2] == 1)
+//          one of the Rockwell instructions is being executed;
+//      else
+//          a normal 65C02 instruction is being executed;
 //
 //  For the Rockwell instructions, the mask is not provided by the accumulator.
 //  Instead, the mask is provided by least significant 8 bits of the fixed

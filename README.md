@@ -141,197 +141,98 @@ Design and verification is complete.
 Release Notes
 -------------
 
-###Release 1
+#####Release 2.73a
 
-Release 1 of the M65C02 had an issue in that addressing wrapping of zero page 
-addressing was not properly implemented. Unlike the W65C02 and MOS6502, the 
-M65C02 synthesizable core implemented the addressing modes, but allowed page 
-boundaries to be crossed for all addressing modes. This initial behavior is 
-more like that of the WDC 65C802/816 microprocessors in native mode. With this 
-release, Release 2, the zero page addressing modes of the M65C02 core behave 
-like those of the WDC W65C02.
+Updated the test program files to most recently used versions. Removed dead 
+code from the test bench, and updated files with comment updates.
 
-Following Release 1, a couple of quick patches were made to the zero page 
-addressing, but these failed to address all of the issues. Release 2 uses the 
-same basic next address generation logic, except that it now allows the 
-microcode to control when addresses are computed modulo 256. With this change, 
-all outstanding issues with respect to zero page addressing have been 
-corrected.
+#####Release 2.73
 
-###Release 2
+Improved the modularity of the M65C02 top level module by creating modules for 
+clock generation and interrupt handling. Updated the design document, and 
+deleted unnecessary files.
 
-Release 2 has reworked the Microprogram Controller (MPC) to include a 
-microcycle length controller directly. With this new MPC, it is expected that 
-it will be easier to adapt the core to use LUT RAM for page 0 (data page) and 
-page 1 (stack page), and to attach a external memory controller with variable 
-length access cycles. The microcycle length controller allows 1, 2, or 4 cycle 
-microcycles. Neither the 1 and 2 cycle microcyles support wait state 
-insertion, but the 4 cycle microcycle allows the insertion of wait states. 
-With this architecture, LUT and internal Block RAMs can be used to provide 
-high speed operation. The 4 cycle external memory microcycle should easily 
-allow the core to support asynchronous or synchronous external memory. Release 
-1 allowed variable length microcycles, but the address-based mechanism 
-implemented was difficult to use in practice. Release 1 targeted a single 
-cycle memory like that provided by the distributed LUT RAMs of the target 
-FPGAs. The approach used in Release 2 should make it much easier to adapt the 
-M65C02 core.
+#####Release 2.72
 
-####Release 2.1
+Improved the timing of the soft-core microprocessor, M65C02, by using a more 
+efficient scheme for the internal bus multiplexers. Previous releases of the 
+core, M65C02_Core, and the soft-core microprocessor used multiplexers 
+generated using _switch/case select_ constructs.
 
-Release 2.1 has modified the core to export signals to an external memory
-controller that would allow the memory controller to drive the core logic with
-the required microcycle length value for the next microcycle. The test bench for
-the core is running in parallel with the original Release 1 (with zero page
-adressing corrected) core (M65C02_Base.v) so that a self-checking configuration
-is achieved between the two cores and the common test program. Release 2.1 also
-includes a modified memory model module, M65C02_RAM,v, that supports all three
-types of memory that is expected to be used with the core: LUT (page 0), BRAM
-(page 1 and internal program/data memory), and external pipelined SynchRAM.
+Although these constructs are an effective and fast means for generating bus 
+multiplexers, there are some penalties. This latest release has resorted to 
+using one-hot decode ROMs tied to the various bus selects in the 
+implementation, and then forcing the various data sources to connect to the 
+busses as gated signals. When not gated, a logic 0 is driven onto the bus. At 
+the terminal end, a simple OR gate is used to collect all of the desired gated 
+signals.
 
-####Release 2.2
+The result of this effort has been a significant improvement in the 
+combinatorial path delays. Prior to this optimization, the synthesizer 
+reported a clock period performance of ~55 MHz. After the OR bus optimization 
+was fully incorporated, the synthesizer reports a minimum period of ~74 MHz. 
+This is nearly a 35% improvement in the combinatorial path delays.
 
-Release 2.2 has been tested using microcycles of 1, 2, or 4 cycles in length. 
-During testing, some old issues returned when multi-cycle microcycles were 
-used. With single cycle microcycles there were no problems with either of the 
-two cores: M65C02_Core.v or M65C02_Base.v. For example, with 2 and 4 cycle 
-microcycles, the modification of the PSW before the first instruction of the 
-ISR was found to be taking place several microcycles before it should. This 
-issue was tracked down to the fact that the microprogram ROMs and the PSW 
-update logic were not being qualified by the internal Rdy signal, or end-of-
-microcycle. In the single cycle microcycle case, previous corrections applied 
-to address this issue still worked, but the single cycle solutions applied did 
-not generalize to the multi-cycle cases. Thus, several modules were modified 
-so that ISR, BCD, and zero page addressing modes now behave correctly for 
-single and multi-cycle microcycles.
+The resulting improvement is sufficient to allow the soft-core processor to 
+support an operating speed of **73.728 MHz** which corresponds to a single 
+instruction cycle time of **18.432 MHz** given this core's 4 cycle microcycle. 
+In addition to the improved combinatorial path delays, the improvement in path 
+delays has allowed the core to be synthesized, Mapped, and PARed for minimum 
+area. The result is a significant reduction in the resource utilization in the 
+target XC3S50A-4VQG100I FPGA.
 
-####Release 2.3
-
-Release 2.3 implements the standard 6502/65C02 vector fetch operations and 
-adds the WAI and STP instructions. Both versions are updated to incorporate 
-these features. The testbench has been modified to include another M6502_RAM 
-module, and to separate the two modules into "ROM" at high memory and "RAM" at 
-low memory. The test program has been updated to include initialization of 
-"RAM" by the test program running from "ROM". Initialization of the stack 
-pointer is still part of the core logic, and the test program expects that S 
-is initialized to 0xFF on reset, and that the reset vector fetch sequence does 
-not modify the stack. In other words, the Release 2.3 core does not write to 
-the stack before fetching the vector and starting execution at that address.
-
-####Release 2.4
-
-Release 2.4 incorporates the 32 Rockwell instruction opcodes and the WAI and STP 
-instructions.
-
-####Release 2.5
-
-Release 2.5 makes some minor modifications to the M65C02 core module to allow 
-the output of some signals that allow the generation of interface signals such 
-as the active low Vector Pull output of the W65C02S microprocessor. In 
-addition to bringing out of these signals, Release 2.5 also provides an 
-implementation of a standalone microprocessor, or system-on-chip, which 
-demonstrates how the M65C02 can be used to provide a stand-alone 
-implementation of a 65C02 processor. This implementation is composed of the 
-following files:
-
-    M65C02.v                - M65C02 microprocessor demonstration
-        ClkGen.xaw          - Xilinx Architecture Wizard clock generator file
-
-    M65C02.ucf              - User Constraints File: period and pin LOCs
-    M65C02.tcl              - Project settings file
-    
-    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
-
-The header of the M65C02.v module provides details of the differences between 
-the 65C02 microprocessor implementation represented by the M65C02.v and a 
-65C02 processor implementation as represented by the WDC W65C02S microprocessor. 
-
-The M65C02 implementation is targeted at an XC3S50A-4VQG100I FPGA. The User 
-Constraints File (ucf) has been developed so that the resulting implementation 
-can be used as a fully functional microprocessor when attached to external I/O 
-devices, external SRAM device(s) (25ns or faster), and external an NOR Flash 
-device (4kB, 45ns or faster). A development board is presently being developed 
-to demonstrate the M65C02, and to provide a suitable platform for further 
-development of the remaining FPGA resources into a more complete system-on-
-chip based on the M65C02 core.
-
-The Xilinx ISE 10.1i SP3 synthesis results for the M65C02 are as follows:
+The following table summarizes PAR results for Release 2.7 of the M65C02
+processor: **XC3S50A-4VQG100I**
 
                                            Used Avail  %
-    Number of Slice Flip Flops              200 1408  14%   
-    Number of 4 input LUTs                  736 1408  52%   
-    Logic Distribution          
+    Number of Slice Flip Flops              248 1408  17%   
+    Number of 4 input LUTs                  647 1408  45%   
 
-    Number of occupied Slices               426  704  60%   
-        Number of Slices related logic      426  426 100%   
-        Number of Slices unrelated logic      0  426   0%   
-    Total Number of 4 input LUTs            745 1408  52%   
-        Number used as logic                735       
-        Number used as a route-thru           9       
-        Number used as Shift registers        1       
-    Number of bonded IOBs 
-        Number of bonded pads                53   68  77%   
-        IOB Flip Flops                       79       
-    Number of BUFGMUXs                        4   24  16%   
-    Number of DCMs                            1    2  50%   
-    Number of RAMB16BWEs                      2    3  66% 
-
-    Best Case Achievable:                13.213ns (0.037ns Setup, 1.023ns Hold)
-
-Please read the header and other comments for more details on the M65C02
-processor implementation. In particular, read and understand the discussion
-regarding the use of an FPGA-specific clock multiplexer to manage the memory
-cycle length in lieu of supporting wait state generation/insertion.
-
-#####Release 2.6
-
-Modified the M65C02 processor to use the last available block RAM in the 
-XC3S50A-xVQG100I device as a 2kB Boot/Monitor ROM. Added an external pin to 
-inhibit writes into this block RAM. The UCF file includes a PULLUP on the pin 
-which enables writes. Also modified the clock stretch logic to only apply when 
-system ROM, CE[2], or User ROM, CE[1], are addressed. The Boot/Monitor 
-ROM/RAM, IO (CE[3]), and User RAM, CE[0], do not use the clock stretching 
-logic and therefore require devices able to respond in a single memory cycle of
-the M65C02, ~25ns.
-
-Adding the additional (internal) device select and data multiplexer to the 
-M65C02 caused a drop in performance. External memory operating frequency 
-decreased from ~20 MHz (max) to ~16 MHz for a -5 speed grade part. There was 
-also an increase in the size of the implementation, but that was expected and 
-did use a reasonable number of additional resources.
-
-The following table summarizes PAR results for the new release of the M65C02
-processor:
-
-                                           Used Avail  %
-    Number of Slice Flip Flops              205 1408  14%   
-    Number of 4 input LUTs                  724 1408  51%   
-    Logic Distribution          
-
-    Number of occupied Slices               443  704  62%   
-        Number of Slices related logic      443  443 100%   
-        Number of Slices unrelated logic      0  426   0%   
-    Total Number of 4 input LUTs            732 1408  51%   
-        Number used as logic                723       
-        Number used as a route-thru           8       
+    Number of occupied Slices               400  704  56%   
+        Number of Slices related logic      400  400 100%   
+        Number of Slices unrelated logic      0  400   0%   
+    Total Number of 4 input LUTs            661 1408  46%   
+        Number used as logic                646       
+        Number used as a route-thru          14       
         Number used as Shift registers        1       
     Number of bonded IOBs 
         Number of bonded pads                54   68  79%   
-        IOB Flip Flops                       80       
-    Number of BUFGMUXs                        4   24  16%   
+        IOB Flip Flops                       79       
+    Number of BUFGMUXs                        3   24  16%   
     Number of DCMs                            1    2  50%   
     Number of RAMB16BWEs                      3    3 100% 
 
-    Best Case Achievable:                15.147ns (0.003ns Setup, 0.817ns Hold)
+    Best Case Achievable:                13.516ns (0.047ns Setup, 1.021ns Hold)
 
-The modified files are:
+The files modified in this release are:
 
     M65C02.v                - M65C02 microprocessor demonstration
-    M65C02.ucf              - User Constraints File: period and pin LOCs
-    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
+      M65C02_Core.v         - M65C02 core logic
+        M65C02_AddrGen.v    - M65C02 core microprogram controller
+        M65C02_ALU.v        - M65C02 core ALU
+          M65C02_BIN.v      - M65C02 ALU Binary mode adder
+          M65C02_BCD.v      - M65C02 ALU Decimal mode adder
+      M65C02.ucf            - User Constraints File: period and pin LOCs
+    M65C02.tcl              - M65C02 ISE tool configurations/settings
 
-Additional work is needed for verification, but this release successfully
-executes the same test program as the previous release of the M65C02 processor
-and the M65C02 core.
+Additional optimizations in the ALU can be applied, but with the improvements 
+made with this release, a -5 speed grade part can be made to operate at 90+ 
+MHz. If higher speeds are needed, then further optimization, including adding 
+pipeline registers to the ALU, can be made. Some pipelining can be easily 
+added because of the 4 clock microcycle around which the soft-core processor 
+is built.
+
+#####Release 2.71
+
+Corrected logic for generating an internal reset signal, Rst, based on an 
+external reset, nRst, and the state of the DCM_Locked signal. The vector 
+reduction operator applied, '&', is incorrect. The correct vector reduction 
+operator is '|', or logic OR. The correction has been made, and the FPGA 
+correctly drives the nRstO output with the complement of the internal reset 
+signal, Rst.
+
+The changes have been made to the M65C02.v module, and only that module has 
+been loaded into the MAM65C02 GitHUB repository.
 
 #####Release 2.7
 
@@ -428,90 +329,194 @@ input clock before it is recognized. This behavior has not yet been tested, nor
 has the related behavior that a loss of lock of the internal clock generator
 will assert reset to the M65C02 processor.
 
-#####Release 2.71
+#####Release 2.6
 
-Corrected logic for generating an internal reset signal, Rst, based on an 
-external reset, nRst, and the state of the DCM_Locked signal. The vector 
-reduction operator applied, '&', is incorrect. The correct vector reduction 
-operator is '|', or logic OR. The correction has been made, and the FPGA 
-correctly drives the nRstO output with the complement of the internal reset 
-signal, Rst.
+Modified the M65C02 processor to use the last available block RAM in the 
+XC3S50A-xVQG100I device as a 2kB Boot/Monitor ROM. Added an external pin to 
+inhibit writes into this block RAM. The UCF file includes a PULLUP on the pin 
+which enables writes. Also modified the clock stretch logic to only apply when 
+system ROM, CE[2], or User ROM, CE[1], are addressed. The Boot/Monitor 
+ROM/RAM, IO (CE[3]), and User RAM, CE[0], do not use the clock stretching 
+logic and therefore require devices able to respond in a single memory cycle of
+the M65C02, ~25ns.
 
-The changes have been made to the M65C02.v module, and only that module has 
-been loaded into the MAM65C02 GitHUB repository.
+Adding the additional (internal) device select and data multiplexer to the 
+M65C02 caused a drop in performance. External memory operating frequency 
+decreased from ~20 MHz (max) to ~16 MHz for a -5 speed grade part. There was 
+also an increase in the size of the implementation, but that was expected and 
+did use a reasonable number of additional resources.
 
-#####Release 2.72
-
-Improved the timing of the soft-core microprocessor, M65C02, by using a more 
-efficient scheme for the internal bus multiplexers. Previous releases of the 
-core, M65C02_Core, and the soft-core microprocessor used multiplexers 
-generated using _switch/case select_ constructs.
-
-Although these constructs are an effective and fast means for generating bus 
-multiplexers, there are some penalties. This latest release has resorted to 
-using one-hot decode ROMs tied to the various bus selects in the 
-implementation, and then forcing the various data sources to connect to the 
-busses as gated signals. When not gated, a logic 0 is driven onto the bus. At 
-the terminal end, a simple OR gate is used to collect all of the desired gated 
-signals.
-
-The result of this effort has been a significant improvement in the 
-combinatorial path delays. Prior to this optimization, the synthesizer 
-reported a clock period performance of ~55 MHz. After the OR bus optimization 
-was fully incorporated, the synthesizer reports a minimum period of ~74 MHz. 
-This is nearly a 35% improvement in the combinatorial path delays.
-
-The resulting improvement is sufficient to allow the soft-core processor to 
-support an operating speed of **73.728 MHz** which corresponds to a single 
-instruction cycle time of **18.432 MHz** given this core's 4 cycle microcycle. 
-In addition to the improved combinatorial path delays, the improvement in path 
-delays has allowed the core to be synthesized, Mapped, and PARed for minimum 
-area. The result is a significant reduction in the resource utilization in the 
-target XC3S50A-4VQG100I FPGA.
-
-The following table summarizes PAR results for Release 2.7 of the M65C02
-processor: **XC3S50A-4VQG100I**
+The following table summarizes PAR results for the new release of the M65C02
+processor:
 
                                            Used Avail  %
-    Number of Slice Flip Flops              248 1408  17%   
-    Number of 4 input LUTs                  647 1408  45%   
+    Number of Slice Flip Flops              205 1408  14%   
+    Number of 4 input LUTs                  724 1408  51%   
+    Logic Distribution          
 
-    Number of occupied Slices               400  704  56%   
-        Number of Slices related logic      400  400 100%   
-        Number of Slices unrelated logic      0  400   0%   
-    Total Number of 4 input LUTs            661 1408  46%   
-        Number used as logic                646       
-        Number used as a route-thru          14       
+    Number of occupied Slices               443  704  62%   
+        Number of Slices related logic      443  443 100%   
+        Number of Slices unrelated logic      0  426   0%   
+    Total Number of 4 input LUTs            732 1408  51%   
+        Number used as logic                723       
+        Number used as a route-thru           8       
         Number used as Shift registers        1       
     Number of bonded IOBs 
         Number of bonded pads                54   68  79%   
-        IOB Flip Flops                       79       
-    Number of BUFGMUXs                        3   24  16%   
+        IOB Flip Flops                       80       
+    Number of BUFGMUXs                        4   24  16%   
     Number of DCMs                            1    2  50%   
     Number of RAMB16BWEs                      3    3 100% 
 
-    Best Case Achievable:                13.516ns (0.047ns Setup, 1.021ns Hold)
+    Best Case Achievable:                15.147ns (0.003ns Setup, 0.817ns Hold)
 
-The files modified in this release are:
+The modified files are:
 
     M65C02.v                - M65C02 microprocessor demonstration
-      M65C02_Core.v         - M65C02 core logic
-        M65C02_AddrGen.v    - M65C02 core microprogram controller
-        M65C02_ALU.v        - M65C02 core ALU
-          M65C02_BIN.v      - M65C02 ALU Binary mode adder
-          M65C02_BCD.v      - M65C02 ALU Decimal mode adder
-      M65C02.ucf            - User Constraints File: period and pin LOCs
-    M65C02.tcl              - M65C02 ISE tool configurations/settings
+    M65C02.ucf              - User Constraints File: period and pin LOCs
+    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
 
-Additional optimizations in the ALU can be applied, but with the improvements 
-made with this release, a -5 speed grade part can be made to operate at 90+ 
-MHz. If higher speeds are needed, then further optimization, including adding 
-pipeline registers to the ALU, can be made. Some pipelining can be easily 
-added because of the 4 clock microcycle around which the soft-core processor 
-is built.
+Additional work is needed for verification, but this release successfully
+executes the same test program as the previous release of the M65C02 processor
+and the M65C02 core.
 
-#####Release 2.73
+####Release 2.5
 
-Improved the modularity of the M65C02 top level module by creating modules for 
-clock generation and interrupt handling. Updated the design document, and 
-deleted unnecessary files.
+Release 2.5 makes some minor modifications to the M65C02 core module to allow 
+the output of some signals that allow the generation of interface signals such 
+as the active low Vector Pull output of the W65C02S microprocessor. In 
+addition to bringing out of these signals, Release 2.5 also provides an 
+implementation of a standalone microprocessor, or system-on-chip, which 
+demonstrates how the M65C02 can be used to provide a stand-alone 
+implementation of a 65C02 processor. This implementation is composed of the 
+following files:
+
+    M65C02.v                - M65C02 microprocessor demonstration
+        ClkGen.xaw          - Xilinx Architecture Wizard clock generator file
+
+    M65C02.ucf              - User Constraints File: period and pin LOCs
+    M65C02.tcl              - Project settings file
+    
+    tb_M65C02.v             - M65C02 testbench with RAM/ROM and interrupt sources
+
+The header of the M65C02.v module provides details of the differences between 
+the 65C02 microprocessor implementation represented by the M65C02.v and a 
+65C02 processor implementation as represented by the WDC W65C02S microprocessor. 
+
+The M65C02 implementation is targeted at an XC3S50A-4VQG100I FPGA. The User 
+Constraints File (ucf) has been developed so that the resulting implementation 
+can be used as a fully functional microprocessor when attached to external I/O 
+devices, external SRAM device(s) (25ns or faster), and external an NOR Flash 
+device (4kB, 45ns or faster). A development board is presently being developed 
+to demonstrate the M65C02, and to provide a suitable platform for further 
+development of the remaining FPGA resources into a more complete system-on-
+chip based on the M65C02 core.
+
+The Xilinx ISE 10.1i SP3 synthesis results for the M65C02 are as follows:
+
+                                           Used Avail  %
+    Number of Slice Flip Flops              200 1408  14%   
+    Number of 4 input LUTs                  736 1408  52%   
+    Logic Distribution          
+
+    Number of occupied Slices               426  704  60%   
+        Number of Slices related logic      426  426 100%   
+        Number of Slices unrelated logic      0  426   0%   
+    Total Number of 4 input LUTs            745 1408  52%   
+        Number used as logic                735       
+        Number used as a route-thru           9       
+        Number used as Shift registers        1       
+    Number of bonded IOBs 
+        Number of bonded pads                53   68  77%   
+        IOB Flip Flops                       79       
+    Number of BUFGMUXs                        4   24  16%   
+    Number of DCMs                            1    2  50%   
+    Number of RAMB16BWEs                      2    3  66% 
+
+    Best Case Achievable:                13.213ns (0.037ns Setup, 1.023ns Hold)
+
+Please read the header and other comments for more details on the M65C02
+processor implementation. In particular, read and understand the discussion
+regarding the use of an FPGA-specific clock multiplexer to manage the memory
+cycle length in lieu of supporting wait state generation/insertion.
+
+####Release 2.4
+
+Release 2.4 incorporates the 32 Rockwell instruction opcodes and the WAI and STP 
+instructions.
+
+####Release 2.3
+
+Release 2.3 implements the standard 6502/65C02 vector fetch operations and 
+adds the WAI and STP instructions. Both versions are updated to incorporate 
+these features. The testbench has been modified to include another M6502_RAM 
+module, and to separate the two modules into "ROM" at high memory and "RAM" at 
+low memory. The test program has been updated to include initialization of 
+"RAM" by the test program running from "ROM". Initialization of the stack 
+pointer is still part of the core logic, and the test program expects that S 
+is initialized to 0xFF on reset, and that the reset vector fetch sequence does 
+not modify the stack. In other words, the Release 2.3 core does not write to 
+the stack before fetching the vector and starting execution at that address.
+
+####Release 2.2
+
+Release 2.2 has been tested using microcycles of 1, 2, or 4 cycles in length. 
+During testing, some old issues returned when multi-cycle microcycles were 
+used. With single cycle microcycles there were no problems with either of the 
+two cores: M65C02_Core.v or M65C02_Base.v. For example, with 2 and 4 cycle 
+microcycles, the modification of the PSW before the first instruction of the 
+ISR was found to be taking place several microcycles before it should. This 
+issue was tracked down to the fact that the microprogram ROMs and the PSW 
+update logic were not being qualified by the internal Rdy signal, or end-of-
+microcycle. In the single cycle microcycle case, previous corrections applied 
+to address this issue still worked, but the single cycle solutions applied did 
+not generalize to the multi-cycle cases. Thus, several modules were modified 
+so that ISR, BCD, and zero page addressing modes now behave correctly for 
+single and multi-cycle microcycles.
+
+####Release 2.1
+
+Release 2.1 has modified the core to export signals to an external memory
+controller that would allow the memory controller to drive the core logic with
+the required microcycle length value for the next microcycle. The test bench for
+the core is running in parallel with the original Release 1 (with zero page
+adressing corrected) core (M65C02_Base.v) so that a self-checking configuration
+is achieved between the two cores and the common test program. Release 2.1 also
+includes a modified memory model module, M65C02_RAM,v, that supports all three
+types of memory that is expected to be used with the core: LUT (page 0), BRAM
+(page 1 and internal program/data memory), and external pipelined SynchRAM.
+
+###Release 2
+
+Release 2 has reworked the Microprogram Controller (MPC) to include a 
+microcycle length controller directly. With this new MPC, it is expected that 
+it will be easier to adapt the core to use LUT RAM for page 0 (data page) and 
+page 1 (stack page), and to attach a external memory controller with variable 
+length access cycles. The microcycle length controller allows 1, 2, or 4 cycle 
+microcycles. Neither the 1 and 2 cycle microcyles support wait state 
+insertion, but the 4 cycle microcycle allows the insertion of wait states. 
+With this architecture, LUT and internal Block RAMs can be used to provide 
+high speed operation. The 4 cycle external memory microcycle should easily 
+allow the core to support asynchronous or synchronous external memory. Release 
+1 allowed variable length microcycles, but the address-based mechanism 
+implemented was difficult to use in practice. Release 1 targeted a single 
+cycle memory like that provided by the distributed LUT RAMs of the target 
+FPGAs. The approach used in Release 2 should make it much easier to adapt the 
+M65C02 core.
+
+###Release 1
+
+Release 1 of the M65C02 had an issue in that addressing wrapping of zero page 
+addressing was not properly implemented. Unlike the W65C02 and MOS6502, the 
+M65C02 synthesizable core implemented the addressing modes, but allowed page 
+boundaries to be crossed for all addressing modes. This initial behavior is 
+more like that of the WDC 65C802/816 microprocessors in native mode. With this 
+release, Release 2, the zero page addressing modes of the M65C02 core behave 
+like those of the WDC W65C02.
+
+Following Release 1, a couple of quick patches were made to the zero page 
+addressing, but these failed to address all of the issues. Release 2 uses the 
+same basic next address generation logic, except that it now allows the 
+microcode to control when addresses are computed modulo 256. With this change, 
+all outstanding issues with respect to zero page addressing have been 
+corrected.

@@ -15,8 +15,8 @@
 ;
 ; You should have received a copy of the GNU General Public License
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
+;
+;
 ; This program is designed to test all opcodes of a 6502 emulator using all
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
@@ -68,38 +68,63 @@
 ;   23-jul-2013  added RAM integrity check
 ;
 ;   30-Aug-2013  Modified by Michael A. Morris to allow selection of tests
+;   04-Jan-2014  Modified trap vectors to use sbc2oslite BRK handler for error
+;                trapping. Enabled success macro, which returns to the monitor.
+;                Disabled BRK trap test in order to trap out to the monitor.
+;   30-Jan-2014  Modified success macro to issue brk instruction instead of rts.
+;   27-Nov-2014  Modified success macro to use stp instruction instead of brk
+;   07-Dec-2014  Modified success macro to use brk instruction instead of stp
 ;
 ; C O N F I G U R A T I O N
 ;
 ;ROM_vectors writable (0=no, 1=yes)
-;if ROM vectors can not be used interrupts will not be trapped
-;as a consequence BRK can not be tested but will be emulated to test RTI
-ROM_vectors = 1
+;
+;   if ROM vectors can not be used interrupts will not be trapped
+;   as a consequence BRK can not be tested but will be emulated to test RTI
+;
+ROM_vectors = 0
+;
 ;load_data_direct (0=move from code segment, 1=load directly)
 ;loading directly is preferred but may not be supported by your platform
 ;0 produces only consecutive object code, 1 is not suitable for a binary image
-load_data_direct = 1
+;
+load_data_direct = 0
+;
 ;I_flag behavior (0=force enabled, 1=force disabled, 2=prohibit change, 3=allow
 ;change) 2 requires extra code and is not recommended. SEI & CLI can only be
 ;tested if you allow changing the interrupt status (I_flag = 3)
+;
 I_flag = 3
+;
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, $50 (80) consecutive Bytes required
 ;                                add 2 if I_flag = 2
-zero_page = $a  
+;
+zero_page = $B0  
+;
 ;data_segment memory start address, $5B (91) consecutive Bytes required
+;
 data_segment = $200  
     if (data_segment & $ff) != 0
         ERROR ERROR ERROR low byte of data_segment MUST be $00 !!
     endif  
+;
 ;code_segment memory start address, 13kB of consecutive space required
 ;                                   add 2.5 kB if I_flag = 2
 ;parts of the code are self modifying and must reside in RAM
+;
 code_segment = $400  
+;
 ;RAM integrity test option. Checks for undesired RAM writes.
 ;set lowest non RAM or RAM mirror address page (-1=disable, 0=64k, $40=16k)
 ;leave disabled if a monitor, OS or background interrupt is allowed to alter RAM
+;
 ram_top = -1
+;ram_top = $40
+;
+;   Define the top of stack location
+;
+stack_top = $1FF   
 ;
 ;Skip to ADC/SBC tests
 ;
@@ -107,16 +132,18 @@ skip_part_1  = 0
 ;
 ;Skip Binary or Decimal mode ADC/SBC instruction tests
 ;
-skip_bin_test = 1
+skip_bin_test = 0
 skip_dec_test = 0
-
+;
         noopt       ;do not take shortcuts
-
+;
 ;macros for error & success traps to allow user modification
 ;example:
+;
 ;trap    macro
 ;        jsr my_error_handler
 ;        endm
+;
 ;trap_eq macro
 ;        bne skip\?
 ;        trap           ;failed equal (zero)
@@ -126,37 +153,65 @@ skip_dec_test = 0
 ; my_error_handler should pop the calling address from the stack and report it.
 ; putting larger portions of code (more than 3 bytes) inside the trap macro
 ; may lead to branch range problems for some tests.
+
 trap    macro
-        jmp *           ;failed anyway
-        endm
-trap_eq macro
-        beq *           ;failed equal (zero)
-        endm
-trap_ne macro
-        bne *           ;failed not equal (non zero)
-        endm
-trap_cs macro
-        bcs *           ;failed carry set
-        endm
-trap_cc macro
-        bcc *           ;failed carry clear
-        endm
-trap_mi macro
-        bmi *           ;failed minus (bit 7 set)
-        endm
-trap_pl macro
-        bpl *           ;failed plus (bit 7 clear)
-        endm
-trap_vs macro
-        bvs *           ;failed overflow set
-        endm
-trap_vc macro
-        bvc *           ;failed overflow clear
-        endm
-success macro
-        jmp *           ;test passed, no errors
+;        db      $db         ; M65C02/M65C02A SToP instruction
+        brk                 ; Use BRK to return to the monitor
+        db      test_num  
         endm
 
+trap_eq macro
+        bne skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_ne macro
+        beq skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_cs macro
+        bcc skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_cc macro
+        bcs skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_mi macro
+        bpl skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_pl macro
+        bmi skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_vs macro
+        bvc skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+trap_vc macro
+        bvs skip\?
+        trap           ;failed equal (zero)
+skip\?
+        endm
+
+success macro
+        brk
+        db      test_num+1
+        endm
 
 carry   equ %00000001   ;flag bits in status
 zero    equ %00000010
@@ -186,56 +241,77 @@ m8i     equ $ff&~intdis     ;8 bit mask - interrupt disable
 ;macros to allow masking of status bits.
 ;masking of interrupt enable/disable on load and compare
 ;masking of always on bits after PHP or BRK (unused & break) on compare
+
         if I_flag = 0
+
 load_flag   macro
             lda #\1&m8i         ;force enable interrupts (mask I)
             endm
+
 cmp_flag    macro
             cmp #(\1|fao)&m8i   ;I_flag is always enabled + always on bits
             endm
+
 eor_flag    macro
             eor #(\1&m8i|fao)   ;mask I, invert expected flags + always on bits
             endm
+
         endif
+
         if I_flag = 1
+
 load_flag   macro
             lda #\1|intdis      ;force disable interrupts
             endm
+
 cmp_flag    macro
             cmp #(\1|fai)&m8    ;I_flag is always disabled + always on bits
             endm
+
 eor_flag    macro
             eor #(\1|fai)       ;invert expected flags + always on bits + I
             endm
+
         endif
+
         if I_flag = 2
+
 load_flag   macro
             lda #\1
             ora flag_I_on       ;restore I-flag
             and flag_I_off
             endm
+
 cmp_flag    macro
             eor flag_I_on       ;I_flag is never changed
             cmp #(\1|fao)&m8i   ;expected flags + always on bits, mask I
             endm
+
 eor_flag    macro
             eor flag_I_on       ;I_flag is never changed
             eor #(\1&m8i|fao)   ;mask I, invert expected flags + always on bits
             endm
+
         endif
+
         if I_flag = 3
+
 load_flag   macro
             lda #\1             ;allow test to change I-flag (no mask)
             endm
+
 cmp_flag    macro
             cmp #(\1|fao)&m8    ;expected flags + always on bits
             endm
+
 eor_flag    macro
             eor #\1|fao         ;invert expected flags + always on bits
             endm
+
         endif
 
 ;macros to set (register|memory|zeropage) & status
+
 set_stat    macro       ;setting flags in the processor status register
             load_flag \1
             pha         ;use stack to load status
@@ -310,6 +386,7 @@ set_absx    macro       ;precharging abs,x & immediate status
             endm
 
 ;macros to test (register|memory|zeropage) & status & (mask)
+
 tst_stat    macro       ;testing flags in the processor status register
             php         ;save status
             php         ;use stack to retrieve status
@@ -420,7 +497,9 @@ tst_absx    macro       ;testing result in abs,x & flags
 ;   verifies that none of the previous tests has altered RAM outside of the
 ;   designated write areas.
 ;   uses zpt word as indirect pointer, zpt+2 word as checksum
+
         if ram_top > -1
+
 check_ram   macro 
             cld
             lda #0
@@ -465,10 +544,13 @@ ccs4\?      iny
             cmp ram_chksm+1 ;checksum high expected
             trap_ne         ;checksum mismatch
             endm            
+
         else
+
 check_ram   macro
             ;RAM check disabled - RAM size not set
             endm
+
         endif
 
 next_test   macro           ;make sure, tests don't jump the fence
@@ -482,24 +564,42 @@ test_num = test_num + 1
             endm
 
     if load_data_direct = 1
+
         data
+
     else
-        bss                 ;uninitialized segment, copy of data at end of code!
-    endif
-;
-;        org zero_page
+
+;        bss                 ;uninitialized segment, copy of data at end of code!
+        code
         org 0
         ds  zero_page
+
+    endif
+;
+        org zero_page
+;
+;        org 0
+;        ds  zero_page
+;
 ;break test interrupt save
+;
+
 irq_a   ds  1               ;a register
 irq_x   ds  1               ;x register
+
     if I_flag = 2
+
 ;masking for I bit in status
+
 flag_I_on   ds  1           ;or mask to load flags   
 flag_I_off  ds  1           ;and mask to load flags
+
     endif
+
 zpt                         ;5 bytes store/modify test area
+
 ;add/subtract operand generation and result/flag prediction
+
 adfc    ds  1               ;carry flag before op
 ad1     ds  1               ;operand 1 - accumulator
 ad2     ds  1               ;operand 2 - memory / immediate
@@ -507,14 +607,20 @@ adrl    ds  1               ;expected result bits 0-7
 adrh    ds  1               ;expected result bit 8 (carry)
 adrf    ds  1               ;expected flags NV0000ZC (-V in decimal mode)
 sb2     ds  1               ;operand 2 complemented for subtract
+
 zp_bss
+
 zp1     db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 zp7f    db  $7f             ;test pattern for compare  
+
 ;logical zeropage operands
+
 zpOR    db  0,$1f,$71,$80   ;test pattern for OR
 zpAN    db  $0f,$ff,$7f,$80 ;test pattern for AND
 zpEO    db  $ff,$0f,$8f,$8f ;test pattern for EOR
+
 ;indirect addressing pointers
+
 ind1    dw  abs1            ;indirect pointer to pattern in absolute memory
         dw  abs1+1
         dw  abs1+2
@@ -538,27 +644,39 @@ indOR   dw  absOR           ;indirect pointer to OR pattern in absolute memory
         dw  absOR+1
         dw  absOR+2
         dw  absOR+3
+
 ;add/subtract indirect pointers
+
 adi2    dw  ada2            ;indirect pointer to operand 2 in absolute memory
 sbi2    dw  sba2            ;indirect pointer to complemented operand 2 (SBC)
 adiy2   dw  ada2-$ff        ;with offset for indirect indexed
 sbiy2   dw  sba2-$ff
+
 zp_bss_end
    
         org data_segment
+
 test_case   ds  1           ;current test number
 ram_chksm   ds  2           ;checksum for RAM integrity test
+
 ;add/subtract operand copy - abs tests write area
+
 abst                        ;5 bytes store/modify test area
 ada2    ds  1               ;operand 2
 sba2    ds  1               ;operand 2 complemented for subtract
         ds  3               ;fill remaining bytes
+
 data_bss
+
 abs1    db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f   db  $7f             ;test pattern for compare
+
 ;loads
+
 fLDx    db  fn,fn,0,fz      ;expected flags for load
+
 ;shifts
+
 rASL                        ;expected result ASL & ROL -carry  
 rROL    db  $86,$04,$82,0   ; "
 rROLc   db  $87,$05,$83,1   ;expected result ROL +carry
@@ -571,37 +689,49 @@ fROLc   db  fnc,fc,fn,0     ;carry in
 fLSR
 fROR    db  fc,0,fc,fz      ;no carry in
 fRORc   db  fnc,fn,fnc,fn   ;carry in
+
 ;increments (decrements)
+
 rINC    db  $7f,$80,$ff,0,1 ;expected result for INC/DEC
 fINC    db  0,fn,fn,fz,0    ;expected flags for INC/DEC
+
 ;logical memory operand
+
 absOR   db  0,$1f,$71,$80   ;test pattern for OR
 absAN   db  $0f,$ff,$7f,$80 ;test pattern for AND
 absEO   db  $ff,$0f,$8f,$8f ;test pattern for EOR
+
 ;logical accu operand
+
 absORa  db  0,$f1,$1f,0     ;test pattern for OR
 absANa  db  $f0,$ff,$ff,$ff ;test pattern for AND
 absEOa  db  $ff,$f0,$f0,$0f ;test pattern for EOR
+
 ;logical results
+
 absrlo  db  0,$ff,$7f,$80
 absflo  db  fz,fn,0,fn
-data_bss_end
 
+data_bss_end
 
         code
         org code_segment
+
 start   cld
         lda #0          ;*** test 0 = initialize
         sta test_case
 test_num = 0
 
 ;stop interrupts before initializing BSS
+
     if I_flag = 1
         sei
     endif
     
 ;initialize BSS segment
+
     if load_data_direct != 1
+
         ldx #zp_end-zp_init-1
 ld_zp   lda zp_init,x
         sta zp_bss,x
@@ -612,27 +742,36 @@ ld_data lda data_init,x
         sta data_bss,x
         dex
         bpl ld_data
+
       if ROM_vectors = 1
+
         ldx #5
 ld_vect lda vec_init,x
         sta vec_bss,x
         dex
         bpl ld_vect
+
       endif
+
     endif
 
 ;retain status of interrupt flag
+
     if I_flag = 2
+
         php
         pla
         and #4          ;isolate flag
         sta flag_I_on   ;or mask
         eor #lo(~4)     ;reverse
         sta flag_I_off  ;and mask
+
     endif
         
 ;generate checksum for RAM integrity test
+
     if ram_top > -1
+
         lda #0 
         sta zpt         ;set low byte of indirect pointer
         sta ram_chksm+1 ;checksum high byte
@@ -669,15 +808,19 @@ gcs4    iny
         cpx #ram_top
         bne gcs5
         sta ram_chksm   ;checksum complete
+
     endif
 
     if skip_part_1 = 1
+
         jmp  bin_test
+
     endif
     
         next_test            
     
 ;testing relative addressing with BEQ
+
         ldy #$fe        ;testing maximum range, not -1/-2 (invalid/self adr)
 range_loop
         dey             ;next relative address
@@ -693,6 +836,7 @@ range_fw
         jmp range_op
         
         ;relative address target field with branch under test in the middle                       
+
         dex             ;-128 - max backward
         dex
         dex
@@ -819,8 +963,10 @@ range_fw
         dex
         dex
         dex             ;-3
+
 range_op                ;test target with zero flag=0, z=1 if previous dex
 range_adr   = *+1       ;modifiable relative address
+
         beq *+64        ;if called without modification
         dex             ;+0
         dex
@@ -949,8 +1095,10 @@ range_adr   = *+1       ;modifiable relative address
         dex
         dex
         dex
+
         beq range_ok    ;+127 - max forward
         trap            ; bad range
+
 range_ok
         cpy #0
         beq range_end   
@@ -959,6 +1107,7 @@ range_end               ;range test successful
         next_test
 
 ;partial test BNE & CMP, CPX, CPY immediate
+
         cpy #1          ;testing BNE true
         bne test_bne
         trap 
@@ -991,6 +1140,7 @@ test_bne
         trap_cs
         trap_pl
         next_test
+
 ;testing stack operations PHA PHP PLA PLP
             
         ldx #$ff        ;initialize stack
@@ -1019,6 +1169,7 @@ test_bne
         next_test
 
 ;testing branch decisions BPL BMI BVC BVS BCC BCS BNE BEQ
+
         set_stat $ff    ;all on
         bpl nbr1        ;branches should not be taken
         bvc nbr2
@@ -1079,7 +1230,9 @@ br14    php
         pla
         cmp_flag 0      ;flags off except break (pushed by sw) + reserved?
         trap_ne
+
         ;crosscheck flags
+
         set_stat carry
         trap_cc
         set_stat zero
@@ -1099,6 +1252,7 @@ br14    php
         next_test
 
 ; test PHA does not alter flags or accumulator but PLA does
+
         ldx #$55        ;x & y protected
         ldy #$aa
         set_a 1,$ff     ;push
@@ -1144,6 +1298,7 @@ br14    php
         next_test
  
 ; partial pretest EOR #
+
         set_a $3c,0
         eor #$c3
         tst_a $ff,fn
@@ -1154,6 +1309,7 @@ br14    php
 
 ; PC modifying instructions except branches (NOP, JMP, JSR, RTS, BRK, RTI)
 ; testing NOP
+
         ldx #$24
         ldy #$42
         set_a $18,0
@@ -1175,6 +1331,7 @@ br14    php
         next_test
         
 ; jump absolute
+
         set_stat $0
         lda #'F'
         ldx #'A'
@@ -1221,6 +1378,7 @@ test_near
         next_test
         
 ; jump indirect
+
         set_stat 0
         lda #'I'
         ldx #'N'
@@ -1252,6 +1410,7 @@ ind_ret
         next_test
 
 ; jump subroutine & return from subroutine
+
         set_stat 0
         lda #'J'
         ldx #'S'
@@ -1279,16 +1438,20 @@ jsr_ret = *-1           ;last address of jsr = return address
         next_test
 
 ; break & return from interrupt
+
     if ROM_vectors = 1
+
         set_stat 0
         lda #'B'
         ldx #'R'
         ldy #'K'        ;N=0, V=0, Z=0, C=0
         brk
+
     else
-        lda #hi brk_ret ;emulated break
+
+        lda #hi(brk_ret) ;emulated break
         pha
-        lda #lo brk_ret
+        lda #lo(brk_ret-1) ; M65C02 pushes BRK+1 not BRK+2
         pha
         lda #fao        ;set break & unused on stack
         pha
@@ -1297,7 +1460,9 @@ jsr_ret = *-1           ;last address of jsr = return address
         ldx #'R'
         ldy #'K'        ;N=0, V=0, Z=0, C=0
         jmp irq_trap
+
     endif
+
         dey             ;should not be executed
 brk_ret                 ;address of break return
         php             ;either SP or Y count will fail, if we do not hit
@@ -1319,17 +1484,22 @@ brk_ret                 ;address of break return
         next_test
  
 ; test set and clear flags CLC CLI CLD CLV SEC SEI SED
+
         set_stat $ff
         clc
         tst_stat $ff-carry
         sec
         tst_stat $ff
+
     if I_flag = 3
+
         cli
         tst_stat $ff-intdis
         sei
         tst_stat $ff
+
     endif
+
         cld
         tst_stat $ff-decmode
         sed
@@ -1342,12 +1512,16 @@ brk_ret                 ;address of break return
         tst_stat carry
         clc
         tst_stat 0  
+
     if I_flag = 3
+
         sei
         tst_stat intdis
         cli
         tst_stat 0
+
     endif  
+
         sed
         tst_stat decmode
         cld
@@ -1357,8 +1531,10 @@ brk_ret                 ;address of break return
         clv
         tst_stat 0
         next_test
+
 ; testing index register increment/decrement and transfer
 ; INX INY DEX DEY TAX TXA TAY TYA 
+
         ldx #$fe
         set_stat $ff
         inx             ;ff
@@ -1546,6 +1722,7 @@ brk_ret                 ;address of break return
         next_test
      
 ;TSX sets NZ - TXS does not
+
         ldx #1          ;01
         set_stat $ff
         txs
@@ -1643,6 +1820,7 @@ brk_ret                 ;address of break return
         
 ; testing index register load & store LDY LDX STY STX all addressing modes
 ; LDX / STX - zp,y / abs,y
+
         ldy #3
 tldx    
         set_stat 0
@@ -1743,6 +1921,7 @@ tstx    lda zpt,y
         next_test
         
 ; indexed wraparound test (only zp should wrap)
+
         ldy #3+$fa
 tldx4   ldx zp1-$fa&$ff,y   ;wrap on indexed zp
         txa
@@ -1772,6 +1951,7 @@ tstx1   lda zpt,y
         next_test
         
 ; LDY / STY - zp,x / abs,x
+
         ldx #3
 tldy    
         set_stat 0
@@ -1872,6 +2052,7 @@ tsty    lda zpt,x
         next_test
 
 ; indexed wraparound test (only zp should wrap)
+
         ldx #3+$fa
 tldy4   ldy zp1-$fa&$ff,x   ;wrap on indexed zp
         tya
@@ -1901,6 +2082,7 @@ tsty1   lda zpt,x
         next_test
 
 ; LDX / STX - zp / abs / #
+
         set_stat 0  
         ldx zp1
         php         ;test stores do not alter flags
@@ -2291,6 +2473,7 @@ tsty1   lda zpt,x
         next_test
 
 ; LDY / STY - zp / abs / #
+
         set_stat 0
         ldy zp1  
         php         ;test stores do not alter flags
@@ -2687,6 +2870,7 @@ tsty1   lda zpt,x
 
 ; testing load / store accumulator LDA / STA all addressing modes
 ; LDA / STA - zp,x / abs,x
+
         ldx #3
 tldax    
         set_stat 0
@@ -2781,6 +2965,7 @@ tstax   lda zpt,x
         next_test
 
 ; LDA / STA - (zp),y / abs,y / (zp,x)
+
         ldy #3
 tlday    
         set_stat 0
@@ -2936,6 +3121,7 @@ tstay2  lda abst,y
         next_test
 
 ; indexed wraparound test (only zp should wrap)
+
         ldx #3+$fa
 tldax6  lda zp1-$fa&$ff,x   ;wrap on indexed zp
         sta abst-$fa,x      ;no STX abs,x!
@@ -3019,6 +3205,7 @@ tstay6  lda abst,y
         next_test
 
 ; LDA / STA - zp / abs / #
+
         set_stat 0  
         lda zp1
         php         ;test stores do not alter flags
@@ -3362,6 +3549,7 @@ tstay6  lda abst,y
 
 ; testing bit test & compares BIT CPX CPY CMP all addressing modes
 ; BIT - zp / abs
+
         set_a $ff,0
         bit zp1+3   ;00 - should set Z / clear  NV
         tst_a $ff,fz 
@@ -3416,6 +3604,7 @@ tstay6  lda abst,y
         next_test
         
 ; CPX - zp / abs / #         
+
         set_x $80,0
         cpx zp7f
         tst_stat fc
@@ -3475,6 +3664,7 @@ tstay6  lda abst,y
         next_test
 
 ; CPY - zp / abs / #         
+
         set_y $80,0
         cpy zp7f
         tst_stat fc
@@ -3534,6 +3724,7 @@ tstay6  lda abst,y
         next_test
 
 ; CMP - zp / abs / #         
+
         set_a $80,0
         cmp zp7f
         tst_a $80,fc
@@ -3692,6 +3883,7 @@ tstay6  lda abst,y
 
 ; testing shifts - ASL LSR ROL ROR all addressing modes
 ; shifts - accumulator
+
         ldx #3
 tasl
         set_ax zp1,0
@@ -3784,6 +3976,7 @@ trorc1
         next_test
 
 ; shifts - zeropage
+
         ldx #3
 tasl2
         set_z zp1,0
@@ -3876,6 +4069,7 @@ trorc3
         next_test
 
 ; shifts - absolute
+
         ldx #3
 tasl4
         set_abs zp1,0
@@ -3968,6 +4162,7 @@ trorc5
         next_test
 
 ; shifts - zp indexed
+
         ldx #3
 tasl6
         set_zx zp1,0
@@ -4060,6 +4255,7 @@ trorc7
         next_test
         
 ; shifts - abs indexed
+
         ldx #3
 tasl8
         set_absx zp1,0
@@ -4153,6 +4349,7 @@ trorc9
 
 ; testing memory increment/decrement - INC DEC all addressing modes
 ; zeropage
+
         ldx #0
         lda #$7e
         sta zpt
@@ -4212,6 +4409,7 @@ tdec11
         next_test
 
 ; absolute memory
+
         ldx #0
         lda #$7e
         sta abst
@@ -4271,6 +4469,7 @@ tdec13
         next_test
 
 ; zeropage indexed
+
         ldx #0
         lda #$7e
 tinc4   sta zpt,x
@@ -4328,6 +4527,7 @@ tdec15
         next_test
 
 ; memory indexed
+
         ldx #0
         lda #$7e
 tinc6   sta abst,x
@@ -4386,6 +4586,7 @@ tdec17
 
 ; testing logical instructions - AND EOR ORA all addressing modes
 ; AND
+
         ldx #3      ;immediate - self modifying code
 tand    lda zpAN,x
         sta tandi1
@@ -4522,6 +4723,7 @@ tand15
         next_test
 
 ; EOR
+
         ldx #3      ;immediate - self modifying code
 teor    lda zpEO,x
         sta teori1
@@ -4658,6 +4860,7 @@ teor15
         next_test
 
 ; OR
+
         ldx #3      ;immediate - self modifying code
 tora    lda zpOR,x
         sta torai1
@@ -4791,24 +4994,31 @@ tora15
         tst_ay  absrlo,absflo,$ff-fnz
         dey
         bpl tora15
+
     if I_flag = 3
+
         cli
+
     endif        
     
 bin_test
     if skip_bin_test = 1
+
         jmp dec_test
+
     else 
+
         lda #test_num
         sta test_case       
+
     endif
 
         next_test
-
     
 ; full binary add/subtract test
 ; iterates through all combinations of operands and carry input
 ; uses increments/decrements to predict result & result flags
+
         cld
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
@@ -4857,11 +5067,16 @@ tadd1   ora adrh        ;merge C to expected flags
         bne tadd        ;iterate op2
 
 dec_test
+
     if skip_dec_test = 1
-        jmp success
+
+        success
+
     else
+
         lda #test_num
         sta test_case       
+
     endif
 
         next_test
@@ -4871,6 +5086,7 @@ dec_test
 ;   only valid BCD operands are tested, N V Z flags are ignored
 ; iterates through all valid combinations of operands and carry input
 ; uses increments/decrements to predict result & carry flag
+
         sed 
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
@@ -4955,28 +5171,35 @@ tdad7   cld
 ; final RAM integrity test
 ;   verifies that none of the previous tests has altered RAM outside of the
 ;   designated write areas.
+
         check_ram
+
 ; *** DEBUG INFO ***
+;
 ; to debug checksum errors uncomment check_ram in the next_test macro to 
 ; narrow down the responsible opcode.
 ; may give false errors when monitor, OS or other background activity is
 ; allowed during previous tests.
 
-
-
 ; S U C C E S S ************************************************       
 ; -------------       
-success jmp start       ;if you get here everything went well
+
+;success    jmp start       ;if you get here everything went well
+            success
 ; -------------       
 ; S U C C E S S ************************************************       
 
 ; core subroutine of the decimal add/subtract test
+;
 ; *** WARNING - tests documented behavior only! ***
 ;   only valid BCD operands are tested, N V Z flags are ignored
 ; iterates through all valid combinations of operands and carry input
 ; uses increments/decrements to predict result & carry flag
+
 chkdad
+
 ; decimal ADC / SBC zp
+
         php             ;save carry for subtract
         lda ad1
         adc ad2         ;perform add
@@ -4999,7 +5222,9 @@ chkdad
         cmp adrh
         trap_ne         ;bad flags
         plp
+
 ; decimal ADC / SBC abs
+
         php             ;save carry for subtract
         lda ad1
         adc ada2        ;perform add
@@ -5022,12 +5247,16 @@ chkdad
         cmp adrh
         trap_ne         ;bad carry
         plp
+
 ; decimal ADC / SBC #
+
         php             ;save carry for subtract
         lda ad2
         sta chkdadi     ;self modify immediate
         lda ad1
+
 chkdadi = * + 1         ;operand of the immediate ADC
+
         adc #0          ;perform add
         php          
         cmp adrl        ;check result
@@ -5041,7 +5270,9 @@ chkdadi = * + 1         ;operand of the immediate ADC
         lda sb2
         sta chkdsbi     ;self modify immediate
         lda ad1
+
 chkdsbi = * + 1         ;operand of the immediate SBC
+
         sbc #0          ;perform subtract
         php          
         cmp adrl        ;check result
@@ -5051,7 +5282,9 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
+
 ; decimal ADC / SBC zp,x
+
         php             ;save carry for subtract
         lda ad1
         adc 0,x         ;perform add
@@ -5074,7 +5307,9 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
+
 ; decimal ADC / SBC abs,x
+
         php             ;save carry for subtract
         lda ad1
         adc ada2-ad2,x  ;perform add
@@ -5097,7 +5332,9 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
+
 ; decimal ADC / SBC abs,y
+
         php             ;save carry for subtract
         lda ad1
         adc ada2-$ff,y  ;perform add
@@ -5120,7 +5357,9 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
+
 ; decimal ADC / SBC (zp,x)
+
         php             ;save carry for subtract
         lda ad1
         adc (lo adi2-ad2,x) ;perform add
@@ -5143,7 +5382,9 @@ chkdsbi = * + 1         ;operand of the immediate SBC
         cmp adrh
         trap_ne         ;bad carry
         plp
+
 ; decimal ADC / SBC (abs),y
+
         php             ;save carry for subtract
         lda ad1
         adc (adiy2),y   ;perform add
@@ -5171,6 +5412,7 @@ chkdsbi = * + 1         ;operand of the immediate SBC
 ; core subroutine of the full binary add/subtract test
 ; iterates through all combinations of operands and carry input
 ; uses increments/decrements to predict result & result flags
+
 chkadd  lda adrf        ;add V-flag if overflow
         and #$83        ;keep N-----ZC / clear V
         pha
@@ -5185,7 +5427,9 @@ chkadd  lda adrf        ;add V-flag if overflow
         pha
 ckad1   pla
         sta adrf        ;save expected flags
+
 ; binary ADC / SBC zp
+
         php             ;save carry for subtract
         lda ad1
         adc ad2         ;perform add
@@ -5208,7 +5452,9 @@ ckad1   pla
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC abs
+
         php             ;save carry for subtract
         lda ad1
         adc ada2        ;perform add
@@ -5231,12 +5477,16 @@ ckad1   pla
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC #
+
         php             ;save carry for subtract
         lda ad2
         sta chkadi      ;self modify immediate
         lda ad1
+
 chkadi  = * + 1         ;operand of the immediate ADC
+
         adc #0          ;perform add
         php          
         cmp adrl        ;check result
@@ -5250,7 +5500,9 @@ chkadi  = * + 1         ;operand of the immediate ADC
         lda sb2
         sta chksbi      ;self modify immediate
         lda ad1
+
 chksbi  = * + 1         ;operand of the immediate SBC
+
         sbc #0          ;perform subtract
         php          
         cmp adrl        ;check result
@@ -5260,7 +5512,9 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC zp,x
+
         php             ;save carry for subtract
         lda ad1
         adc 0,x         ;perform add
@@ -5283,7 +5537,9 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC abs,x
+
         php             ;save carry for subtract
         lda ad1
         adc ada2-ad2,x  ;perform add
@@ -5306,7 +5562,9 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC abs,y
+
         php             ;save carry for subtract
         lda ad1
         adc ada2-$ff,y  ;perform add
@@ -5329,7 +5587,9 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC (zp,x)
+
         php             ;save carry for subtract
         lda ad1
         adc (lo adi2-ad2,x) ;perform add
@@ -5352,7 +5612,9 @@ chksbi  = * + 1         ;operand of the immediate SBC
         cmp adrf
         trap_ne         ;bad flags
         plp
+
 ; binary ADC / SBC (abs),y
+
         php             ;save carry for subtract
         lda ad1
         adc (adiy2),y   ;perform add
@@ -5378,6 +5640,7 @@ chksbi  = * + 1         ;operand of the immediate SBC
         rts
 
 ; target for the jump absolute test
+
         dey
         dey
 test_far
@@ -5411,9 +5674,12 @@ test_far
         jmp far_ret
         
 ; target for the jump indirect test
+
         align
+
 ptr_tst_ind dw test_ind
 ptr_ind_ret dw ind_ret
+
         trap            ;runover protection
         dey
         dey
@@ -5449,6 +5715,7 @@ test_ind
         trap            ;runover protection
 
 ; target for the jump subroutine test
+
         dey
         dey
 test_jsr
@@ -5489,6 +5756,7 @@ test_jsr
         trap            ;runover protection
         
 ;trap in case of unexpected IRQ, NMI, BRK, RESET - BRK test target
+
 nmi_trap
         trap            ;check stack for conditions at NMI
 res_trap
@@ -5501,9 +5769,11 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         dey
         dey
         dey
+
         ;next 4 traps could be caused by unexpected BRK or IRQ
         ;check stack for BREAK and originating location
         ;possible jump/branch into weeds (uninitialized space)
+
         cmp #'B'        ;registers loaded?
         trap_ne
         cpx #'R'
@@ -5538,15 +5808,21 @@ irq_trap                ;BRK test or unextpected BRK or IRQ
         trap            ;runover protection
         
 ;copy of data to initialize BSS segment
+
     if load_data_direct != 1
+
 zp_init
 zp1_    db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 zp7f_   db  $7f             ;test pattern for compare  
+
 ;logical zeropage operands
+
 zpOR_   db  0,$1f,$71,$80   ;test pattern for OR
 zpAN_   db  $0f,$ff,$7f,$80 ;test pattern for AND
 zpEO_   db  $ff,$0f,$8f,$8f ;test pattern for EOR
+
 ;indirect addressing pointers
+
 ind1_   dw  abs1            ;indirect pointer to pattern in absolute memory
         dw  abs1+1
         dw  abs1+2
@@ -5570,22 +5846,32 @@ indOR_  dw  absOR           ;indirect pointer to OR pattern in absolute memory
         dw  absOR+1
         dw  absOR+2
         dw  absOR+3
+
 ;add/subtract indirect pointers
+
 adi2_   dw  ada2            ;indirect pointer to operand 2 in absolute memory
 sbi2_   dw  sba2            ;indirect pointer to complemented operand 2 (SBC)
 adiy2_  dw  ada2-$ff        ;with offset for indirect indexed
 sbiy2_  dw  sba2-$ff
 zp_end
+
     if (zp_end - zp_init) != (zp_bss_end - zp_bss)   
+
         ;force assembler error if size is different   
         ERROR ERROR ERROR   ;mismatch between bss and zeropage data
+
     endif 
+
 data_init
 abs1_   db  $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f_  db  $7f             ;test pattern for compare
+
 ;loads
+
 fLDx_   db  fn,fn,0,fz      ;expected flags for load
+
 ;shifts
+
 rASL_                       ;expected result ASL & ROL -carry  
 rROL_   db  $86,$04,$82,0   ; "
 rROLc_  db  $87,$05,$83,1   ;expected result ROL +carry
@@ -5598,39 +5884,55 @@ fROLc_  db  fnc,fc,fn,0     ;carry in
 fLSR_
 fROR_   db  fc,0,fc,fz      ;no carry in
 fRORc_  db  fnc,fn,fnc,fn   ;carry in
+
 ;increments (decrements)
+
 rINC_   db  $7f,$80,$ff,0,1 ;expected result for INC/DEC
 fINC_   db  0,fn,fn,fz,0    ;expected flags for INC/DEC
+
 ;logical memory operand
+
 absOR_  db  0,$1f,$71,$80   ;test pattern for OR
 absAN_  db  $0f,$ff,$7f,$80 ;test pattern for AND
 absEO_  db  $ff,$0f,$8f,$8f ;test pattern for EOR
+
 ;logical accu operand
+
 absORa_ db  0,$f1,$1f,0     ;test pattern for OR
 absANa_ db  $f0,$ff,$ff,$ff ;test pattern for AND
 absEOa_ db  $ff,$f0,$f0,$0f ;test pattern for EOR
+
 ;logical results
+
 absrlo_ db  0,$ff,$7f,$80
 absflo_ db  fz,fn,0,fn
+
 data_end
+
     if (data_end - data_init) != (data_bss_end - data_bss)
+
         ;force assembler error if size is different   
         ERROR ERROR ERROR   ;mismatch between bss and data
-    endif 
 
+    endif 
+        code
+        org $3FFA
 vec_init
         dw  nmi_trap
         dw  res_trap
         dw  irq_trap
 vec_bss equ $fffa
+
     endif                   ;end of RAM init data
     
     if (load_data_direct = 1) & (ROM_vectors = 1)  
+
         org $fffa       ;vectors
+
         dw  nmi_trap
         dw  res_trap
         dw  irq_trap
-    endif
 
+    endif
         end start
             
