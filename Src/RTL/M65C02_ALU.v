@@ -670,7 +670,7 @@ always @(*) BU_Valid <= En_BU;
 //  Rockwell Unit 
 //      Capabilities expanded to execute the Rockwell RSBx, SMBx, BBRx, and BBSx
 //      instructions. The CCSel field is used to select the operation:
-//          4 - SMBx; 4 - RMBx; 6 = BBSx; 7 - BBRx;
+//          4 - SMBx; 5 - RMBx; 6 = BBSx; 7 - BBRx;
 //
 //      if(CCSel[4:2] == 1)
 //          one of the Rockwell instructions is being executed;
